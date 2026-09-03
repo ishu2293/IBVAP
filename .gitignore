@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtualenv
+.venv
+venv/
+ENV/
+
+# Node
+frontend/node_modules/
+node_modules/
+frontend/dist/
+
+# Ultralytics & Torch models
+*.pt.download
+.cache/
+.EasyOCR/
+
+# System and logs
+*.log
+.DS_Store
+Thumbs.db
+.system_generated/
+scratch/
