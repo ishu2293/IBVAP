@@ -185,52 +185,29 @@ def generate_cctv_simulation_video(
 
 def ensure_demo_assets(force_regenerate: bool = False):
     """
-    Creates/updates the realistic surveillance videos for all 3 demo cameras.
+    Ensures authentic real CCTV surveillance footage is available for all 3 demo cameras.
     """
+    import urllib.request
     DEMO_CCTV_DIR.mkdir(parents=True, exist_ok=True)
 
-    cameras_data = [
-        (
-            "border_demo_01.mp4",
-            "CAM-01 Longewala Outpost",
-            [
-                {"type": "CAR", "w": 280, "h": 180, "plate": "MH12AB1234", "start_x": 120, "start_y": 310, "dx": 2.2},
-                {"type": "BUS", "w": 300, "h": 190, "plate": "DL01CD5678", "start_x": 520, "start_y": 345, "dx": -1.8}
-            ],
-            [
-                {"start_x": 220, "y": 240, "scale": 0.85, "range": 60, "phase": 0},
-                {"start_x": 480, "y": 245, "scale": 0.90, "range": 75, "phase": 1.5}
-            ]
-        ),
-        (
-            "border_demo_02.mp4",
-            "CAM-02 Wagah-Attari Gate",
-            [
-                {"type": "CAR", "w": 280, "h": 180, "plate": "RJ14EF9012", "start_x": 180, "start_y": 315, "dx": 2.5},
-                {"type": "CAR", "w": 280, "h": 180, "plate": "HR26DQ5551", "start_x": 600, "start_y": 335, "dx": -2.1}
-            ],
-            [
-                {"start_x": 300, "y": 240, "scale": 0.88, "range": 70, "phase": 0.8}
-            ]
-        ),
-        (
-            "border_demo_03.mp4",
-            "CAM-03 Galwan LAC",
-            [
-                {"type": "BUS", "w": 300, "h": 190, "plate": "UP16AB1234", "start_x": 200, "start_y": 330, "dx": 2.0},
-                {"type": "CAR", "w": 280, "h": 180, "plate": "KA05GH3456", "start_x": 540, "start_y": 310, "dx": -2.3}
-            ],
-            [
-                {"start_x": 180, "y": 245, "scale": 0.85, "range": 50, "phase": 0},
-                {"start_x": 420, "y": 240, "scale": 0.90, "range": 65, "phase": 2.2}
-            ]
-        )
+    cctv_sources = [
+        ("border_demo_01.mp4", "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4"),
+        ("border_demo_02.mp4", "https://github.com/intel-iot-devkit/sample-videos/raw/master/car-detection.mp4"),
+        ("border_demo_03.mp4", "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4")
     ]
 
-    for filename, cam_name, v_cfgs, p_cfgs in cameras_data:
+    for filename, url in cctv_sources:
         target = DEMO_CCTV_DIR / filename
         if not target.exists() or force_regenerate:
-            generate_cctv_simulation_video(target, cam_name, v_cfgs, p_cfgs, duration_sec=20, fps=25)
+            try:
+                print(f"[DemoGenerator] Downloading real CCTV footage for {filename} from {url}...")
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                data = urllib.request.urlopen(req, timeout=30).read()
+                with open(target, "wb") as f:
+                    f.write(data)
+                print(f"[DemoGenerator] Saved real CCTV video: {filename} ({len(data)} bytes)")
+            except Exception as e:
+                print(f"[DemoGenerator] Warning: Could not download {filename} ({e})")
 
 
 if __name__ == "__main__":
