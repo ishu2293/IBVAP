@@ -49,13 +49,18 @@ class PlateDetector:
 
         if not candidates:
             # Fallback: analyze lower-third region of the vehicle (standard plate mounting zone)
-            lower_y1 = int(vh * 0.55)
-            lower_y2 = int(vh * 0.95)
+            lower_y1 = int(vh * 0.60)
+            lower_y2 = int(vh * 0.98)
             lower_x1 = int(vw * 0.15)
             lower_x2 = int(vw * 0.85)
 
             if (lower_y2 - lower_y1) > 10 and (lower_x2 - lower_x1) > 20:
                 plate_crop = vehicle_crop[lower_y1:lower_y2, lower_x1:lower_x2]
+                ch, cw = plate_crop.shape[:2]
+                if ch < 40 or cw < 120:
+                    scale_factor = max(40.0 / max(ch, 1), 140.0 / max(cw, 1))
+                    plate_crop = cv2.resize(plate_crop, (int(cw * scale_factor), int(ch * scale_factor)), interpolation=cv2.INTER_CUBIC)
+                
                 px1 = vx1 + lower_x1
                 py1 = vy1 + lower_y1
                 px2 = vx1 + lower_x2
@@ -81,6 +86,12 @@ class PlateDetector:
         crop_y2 = min(vh, by2 + margin_y)
 
         plate_crop = vehicle_crop[crop_y1:crop_y2, crop_x1:crop_x2]
+        if plate_crop is not None and plate_crop.size > 0:
+            ch, cw = plate_crop.shape[:2]
+            if ch < 40 or cw < 100:
+                scale_factor = max(40.0 / max(ch, 1), 120.0 / max(cw, 1))
+                plate_crop = cv2.resize(plate_crop, (int(cw * scale_factor), int(ch * scale_factor)), interpolation=cv2.INTER_CUBIC)
+
         px1 = vx1 + crop_x1
         py1 = vy1 + crop_y1
         px2 = vx1 + crop_x2
@@ -137,16 +148,18 @@ class PlateDetector:
             area = w * h
             vehicle_area = vh * vw
 
-            # License plates typically have aspect ratio between 2.0 and 6.5
-            # and occupy between 1% and 35% of the vehicle area
-            if 2.0 <= aspect_ratio <= 6.5 and (0.01 * vehicle_area) <= area <= (0.35 * vehicle_area):
-                # Check position: license plates are typically in the lower 75% of vehicle
-                y_center = y + h / 2.0
-                rel_y = y_center / vh
+            # License plates are strictly located on the lower half/bumper of the vehicle
+            y_center = y + h / 2.0
+            rel_y = y_center / vh
+            if rel_y < 0.52:
+                continue
 
+            # License plates typically have aspect ratio between 1.8 and 6.5
+            # and occupy between 1% and 35% of the vehicle area
+            if 1.8 <= aspect_ratio <= 6.5 and (0.01 * vehicle_area) <= area <= (0.35 * vehicle_area):
                 # Score based on aspect ratio, vertical location, and contrast
                 ar_score = 1.0 - min(abs(aspect_ratio - 3.8) / 3.8, 1.0)
-                pos_score = 0.9 if rel_y >= 0.4 else 0.5
+                pos_score = 0.95 if rel_y >= 0.65 else 0.70
                 conf = 0.5 * ar_score + 0.4 * pos_score + 0.1
                 candidates.append((x, y, x + w, y + h, min(conf, 0.98)))
 

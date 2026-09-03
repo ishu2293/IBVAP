@@ -44,3 +44,6 @@ frontend/dist/
 Thumbs.db
 .system_generated/
 scratch/
+uploads/*.mp4
+uploads/*.avi
+uploads/*.mov

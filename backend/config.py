@@ -21,8 +21,8 @@ VEHICLE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Model Settings
 YOLO_MODEL = os.getenv("YOLO_MODEL", "yolo11n.pt")  # Lightweight nano model
-CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.45"))
-VEHICLE_CONFIDENCE_THRESHOLD = float(os.getenv("VEHICLE_CONFIDENCE_THRESHOLD", "0.40"))
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.25"))
+VEHICLE_CONFIDENCE_THRESHOLD = float(os.getenv("VEHICLE_CONFIDENCE_THRESHOLD", "0.22"))
 IOU_THRESHOLD = float(os.getenv("IOU_THRESHOLD", "0.45"))
 
 # COCO Class IDs
@@ -44,9 +44,9 @@ CLASS_NAME_MAPPING = {
 }
 
 # ANPR Settings
-PLATE_CONFIDENCE_THRESHOLD = float(os.getenv("PLATE_CONFIDENCE_THRESHOLD", "0.50"))
-OCR_CONFIDENCE_THRESHOLD = float(os.getenv("OCR_CONFIDENCE_THRESHOLD", "0.60"))
-ANPR_CONSENSUS_FRAMES = int(os.getenv("ANPR_CONSENSUS_FRAMES", "3"))  # Frames needed for consensus
+PLATE_CONFIDENCE_THRESHOLD = float(os.getenv("PLATE_CONFIDENCE_THRESHOLD", "0.40"))
+OCR_CONFIDENCE_THRESHOLD = float(os.getenv("OCR_CONFIDENCE_THRESHOLD", "0.35"))
+ANPR_CONSENSUS_FRAMES = int(os.getenv("ANPR_CONSENSUS_FRAMES", "2"))  # Frames needed for consensus
 ANPR_PROCESS_INTERVAL = int(os.getenv("ANPR_PROCESS_INTERVAL", "2"))  # Process ANPR every N frames per vehicle
 
 # Video Processing Settings

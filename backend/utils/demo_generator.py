@@ -1,83 +1,47 @@
 import cv2
 import numpy as np
-import urllib.request
 from pathlib import Path
 from backend.config import DEMO_CCTV_DIR, ASSETS_DIR
 
 SPRITES_DIR = ASSETS_DIR / "sprites"
 SPRITES_DIR.mkdir(parents=True, exist_ok=True)
 
-# Pre-defined vehicle sprite URLs (Car, Truck/Bus, Patrol Vehicle)
-SAMPLE_VEHICLE_URLS = {
-    "car": "https://raw.githubusercontent.com/ultralytics/ultralytics/main/ultralytics/assets/bus.jpg",
-}
-
-def ensure_vehicle_assets():
+def attach_license_plate(sprite: np.ndarray, plate_text: str = "MH12AB1234") -> np.ndarray:
     """
-    Downloads or creates realistic photographic vehicle templates for synthetic CCTV simulation.
+    Attaches a high-contrast legible license plate to the bumper of a vehicle sprite.
     """
-    car_sprite_path = SPRITES_DIR / "car_sprite.png"
-    truck_sprite_path = SPRITES_DIR / "truck_sprite.png"
+    img = sprite.copy()
+    vh, vw = img.shape[:2]
 
-    if not car_sprite_path.exists() or not truck_sprite_path.exists():
-        try:
-            # Download sample bus/car image
-            url = "https://raw.githubusercontent.com/ultralytics/ultralytics/main/ultralytics/assets/bus.jpg"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            resp = urllib.request.urlopen(req, timeout=8)
-            arr = np.asarray(bytearray(resp.read()), dtype=np.uint8)
-            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    # Plate dimensions on bumper (lower 30% of vehicle)
+    pw = int(vw * 0.55)
+    ph = int(vh * 0.22)
+    px1 = (vw - pw) // 2
+    py1 = int(vh * 0.68)
+    px2 = px1 + pw
+    py2 = py1 + ph
 
-            if img is not None:
-                # Extract bus region from sample: approx [230:750, 0:800]
-                bus_crop = img[220:740, 10:800]
-                bus_resized = cv2.resize(bus_crop, (280, 160))
-                cv2.imwrite(str(truck_sprite_path), bus_resized)
+    # White plate backing + crisp black border
+    cv2.rectangle(img, (px1, py1), (px2, py2), (255, 255, 255), -1)
+    cv2.rectangle(img, (px1, py1), (px2, py2), (0, 0, 0), 2)
+    # Blue IND strip on left
+    cv2.rectangle(img, (px1, py1), (px1 + 10, py2), (180, 50, 20), -1)
 
-                # Create a car sprite crop
-                car_crop = cv2.resize(img[250:650, 100:600], (220, 120))
-                cv2.imwrite(str(car_sprite_path), car_crop)
-                print("[DemoGenerator] Vehicle sprites downloaded successfully.")
-        except Exception as e:
-            print(f"[DemoGenerator] Warning: Online sprite download skipped ({e}). Creating local high-detail textures.")
-            create_high_detail_vehicle_sprite(car_sprite_path, "CAR")
-            create_high_detail_vehicle_sprite(truck_sprite_path, "BUS")
+    # Crisp bold plate text
+    font_scale = 0.58 if len(plate_text) <= 10 else 0.48
+    cv2.putText(img, plate_text, (px1 + 14, py1 + int(ph * 0.74)), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), 2, cv2.LINE_AA)
+
+    return img
 
 
-def create_high_detail_vehicle_sprite(filepath: Path, v_type: str = "CAR"):
+def draw_realistic_pedestrian(frame: np.ndarray, x: int, y: int, scale: float, frame_idx: int, color=(210, 210, 210)):
     """
-    Fallback: creates a high-detail textured vehicle image.
+    Renders realistic humanoid surveillance pedestrian with natural walking gait.
     """
-    if v_type == "CAR":
-        w, h = 240, 130
-        img = np.zeros((h, w, 3), dtype=np.uint8)
-        # Metallic gradient
-        for y in range(h):
-            shade = int(140 + 70 * np.sin(y / h * np.pi))
-            img[y, :] = (shade - 30, shade, shade + 30)
-        cv2.rectangle(img, (20, 50), (w - 20, h - 20), (30, 45, 140), -1) # Body
-        cv2.rectangle(img, (60, 15), (w - 60, 50), (30, 40, 50), -1) # Glass
-        cv2.circle(img, (60, h - 20), 22, (20, 20, 20), -1)
-        cv2.circle(img, (w - 60, h - 20), 22, (20, 20, 20), -1)
-        cv2.imwrite(str(filepath), img)
-    else:
-        w, h = 280, 160
-        img = np.zeros((h, w, 3), dtype=np.uint8)
-        cv2.rectangle(img, (10, 20), (w - 10, h - 20), (160, 70, 40), -1)
-        cv2.rectangle(img, (30, 30), (w - 30, 80), (30, 40, 50), -1)
-        cv2.circle(img, (70, h - 20), 26, (20, 20, 20), -1)
-        cv2.circle(img, (w - 70, h - 20), 26, (20, 20, 20), -1)
-        cv2.imwrite(str(filepath), img)
-
-
-def draw_walking_human(frame: np.ndarray, x: int, y: int, scale: float, frame_idx: int, color=(220, 220, 220)):
-    """
-    Draws a realistic humanoid figure with moving limbs.
-    """
-    h = int(120 * scale)
-    torso_w = int(24 * scale)
-    torso_h = int(45 * scale)
-    head_r = int(12 * scale)
+    h = int(115 * scale)
+    torso_w = int(22 * scale)
+    torso_h = int(42 * scale)
+    head_r = int(11 * scale)
     limb_thick = max(2, int(4 * scale))
     
     head_cx = x
@@ -85,196 +49,188 @@ def draw_walking_human(frame: np.ndarray, x: int, y: int, scale: float, frame_id
     torso_top_y = head_cy + head_r
     hip_y = torso_top_y + torso_h
 
-    swing = np.sin(frame_idx * 0.15) * 20 * scale
+    swing = np.sin(frame_idx * 0.18) * 18 * scale
+    
+    # Shadow
+    cv2.ellipse(frame, (x, y + 2), (int(16 * scale), int(6 * scale)), 0, 0, 360, (20, 20, 20), -1)
     
     # Head
     cv2.circle(frame, (head_cx, head_cy), head_r, color, -1)
-    # Torso
-    cv2.rectangle(frame, (x - torso_w // 2, torso_top_y), (x + torso_w // 2, hip_y), color, -1)
+    # Torso (Dark security / border guard uniform)
+    cv2.rectangle(frame, (x - torso_w // 2, torso_top_y), (x + torso_w // 2, hip_y), (45, 65, 45), -1)
     # Arms
-    shoulder_y = torso_top_y + int(8 * scale)
-    cv2.line(frame, (x - torso_w // 2, shoulder_y), (int(x - torso_w // 2 - swing), shoulder_y + int(30 * scale)), color, limb_thick)
-    cv2.line(frame, (x + torso_w // 2, shoulder_y), (int(x + torso_w // 2 + swing), shoulder_y + int(30 * scale)), color, limb_thick)
+    shoulder_y = torso_top_y + int(6 * scale)
+    cv2.line(frame, (x - torso_w // 2, shoulder_y), (int(x - torso_w // 2 - swing), shoulder_y + int(28 * scale)), color, limb_thick)
+    cv2.line(frame, (x + torso_w // 2, shoulder_y), (int(x + torso_w // 2 + swing), shoulder_y + int(28 * scale)), color, limb_thick)
     # Legs
-    cv2.line(frame, (x - int(6 * scale), hip_y), (int(x - int(6 * scale) + swing), y), color, limb_thick)
-    cv2.line(frame, (x + int(6 * scale), hip_y), (int(x + int(6 * scale) - swing), y), color, limb_thick)
+    cv2.line(frame, (x - int(5 * scale), hip_y), (int(x - int(5 * scale) + swing), y), (30, 35, 40), limb_thick)
+    cv2.line(frame, (x + int(5 * scale), hip_y), (int(x + int(5 * scale) - swing), y), (30, 35, 40), limb_thick)
 
 
-def overlay_vehicle_sprite(
-    frame: np.ndarray,
-    sprite: np.ndarray,
-    x: int,
-    y: int,
-    plate_text: str = "MH12AB1234"
-):
-    """
-    Overlays a photographic vehicle sprite onto the CCTV frame with a crisp license plate.
-    """
-    fh, fw = frame.shape[:2]
-    sh, sw = sprite.shape[:2]
-
-    x1 = max(0, x - sw // 2)
-    y1 = max(0, y - sh // 2)
-    x2 = min(fw, x1 + sw)
-    y2 = min(fh, y1 + sh)
-
-    crop_sw = x2 - x1
-    crop_sh = y2 - y1
-
-    if crop_sw <= 10 or crop_sh <= 10:
-        return
-
-    # Blend sprite onto frame with soft shadow
-    shadow_y = min(fh - 5, y2 + 5)
-    cv2.ellipse(frame, (x, shadow_y), (sw // 2 + 10, 15), 0, 0, 360, (15, 15, 15), -1)
-
-    # Insert vehicle texture
-    frame[y1:y2, x1:x2] = sprite[:crop_sh, :crop_sw]
-
-    # Draw crisp license plate on bumper
-    pl_w = 74
-    pl_h = 20
-    pl_x1 = max(0, x - pl_w // 2)
-    pl_y1 = min(fh - pl_h - 2, y2 - int(sh * 0.28))
-    pl_x2 = min(fw, pl_x1 + pl_w)
-    pl_y2 = pl_y1 + pl_h
-
-    cv2.rectangle(frame, (pl_x1, pl_y1), (pl_x2, pl_y2), (255, 255, 255), -1)
-    cv2.rectangle(frame, (pl_x1, pl_y1), (pl_x2, pl_y2), (0, 0, 0), 1)
-    cv2.putText(frame, plate_text, (pl_x1 + 3, pl_y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 0, 0), 1, cv2.LINE_AA)
-
-
-def generate_demo_cctv_video(
+def generate_cctv_simulation_video(
     filepath: Path,
-    num_persons: int = 2,
-    num_vehicles: int = 2,
-    duration_sec: int = 15,
+    camera_name: str,
+    vehicles_config: list,
+    pedestrians_config: list,
+    duration_sec: int = 20,
     fps: int = 25
 ):
     """
-    Generates a realistic CCTV border surveillance video with moving persons and vehicles.
+    Generates high-definition realistic CCTV footage with vehicles, license plates, and pedestrians.
     """
     filepath.parent.mkdir(parents=True, exist_ok=True)
-    ensure_vehicle_assets()
-
     width, height = 800, 450
     total_frames = duration_sec * fps
     
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(str(filepath), fourcc, fps, (width, height))
 
-    car_sprite = cv2.imread(str(SPRITES_DIR / "car_sprite.png"))
-    truck_sprite = cv2.imread(str(SPRITES_DIR / "truck_sprite.png"))
+    # Load base vehicle templates
+    bus_raw = cv2.imread(str(SPRITES_DIR / "bus_sprite.jpg"))
+    car_raw = cv2.imread(str(SPRITES_DIR / "car_sprite.jpg"))
 
-    if car_sprite is None:
-        create_high_detail_vehicle_sprite(SPRITES_DIR / "car_sprite.png", "CAR")
-        car_sprite = cv2.imread(str(SPRITES_DIR / "car_sprite.png"))
-    if truck_sprite is None:
-        create_high_detail_vehicle_sprite(SPRITES_DIR / "truck_sprite.png", "BUS")
-        truck_sprite = cv2.imread(str(SPRITES_DIR / "truck_sprite.png"))
+    if bus_raw is None:
+        bus_raw = np.zeros((200, 280, 3), dtype=np.uint8)
+        bus_raw[:] = (120, 50, 30)
+    if car_raw is None:
+        car_raw = np.zeros((180, 260, 3), dtype=np.uint8)
+        car_raw[:] = (40, 60, 160)
 
-    # Initialize persons
-    persons = []
-    for i in range(num_persons):
-        start_x = int(80 + (i * 220) % (width - 160))
-        start_y = int(240 + (i * 30) % 70)
-        dx = (1.5 if i % 2 == 0 else -1.2) * (1 + 0.15 * i)
-        dy = (0.3 if i % 3 == 0 else -0.3) * (0.8 + 0.1 * i)
-        scale = 0.85 + 0.1 * (i % 2)
-        persons.append({
-            "x": start_x,
-            "y": start_y,
-            "dx": dx,
-            "dy": dy,
-            "scale": scale
-        })
-
-    demo_plates = ["MH12AB1234", "DL01CD5678", "RJ14EF9012", "KA05GH3456", "PB02IJ7890"]
-    vehicles = []
-    for i in range(num_vehicles):
-        sprite = truck_sprite if i % 2 == 1 else car_sprite
-        plate = demo_plates[i % len(demo_plates)]
-        start_x = int(140 + i * 280)
-        start_y = int(340 + (i % 2) * 40)
-        dx = (2.2 if i % 2 == 0 else -2.0)
-        vehicles.append({
-            "x": start_x,
-            "y": start_y,
-            "dx": dx,
+    # Pre-render vehicle sprites with crisp license plates
+    rendered_vehicles = []
+    for cfg in vehicles_config:
+        base = bus_raw if cfg.get("type") in ["BUS", "TRUCK"] else car_raw
+        base_resized = cv2.resize(base, (cfg.get("w", 280), cfg.get("h", 180)))
+        sprite = attach_license_plate(base_resized, cfg.get("plate", "MH12AB1234"))
+        
+        rendered_vehicles.append({
             "sprite": sprite,
-            "plate": plate
+            "x": cfg.get("start_x", 200),
+            "y": cfg.get("start_y", 320),
+            "dx": cfg.get("dx", 2.0),
+            "dy": cfg.get("dy", 0.0),
+            "plate": cfg.get("plate", "MH12AB1234"),
+            "type": cfg.get("type", "CAR")
         })
 
     for f in range(total_frames):
-        # Create surveillance outpost background
+        # 1. Base Surveillance Scene (Checkpoint Road + Landscape)
         frame = np.zeros((height, width, 3), dtype=np.uint8)
         
-        # Sky & Mountain ridge
-        frame[:180, :] = (35, 30, 28)
-        # Ground / Desert patrol road
-        frame[180:, :] = (55, 52, 48)
+        # Horizon & Desert Ridge
+        frame[:170, :] = (38, 34, 30)
+        frame[170:220, :] = (50, 46, 42)
         
-        # Patrol road
-        cv2.fillPoly(frame, [np.array([[0, 240], [width, 240], [width, height], [0, height]])], (38, 36, 34))
-        cv2.line(frame, (0, 240), (width, 240), (95, 90, 80), 2)
+        # Checkpoint Road
+        cv2.fillPoly(frame, [np.array([[0, 220], [width, 220], [width, height], [0, height]])], (32, 30, 28))
+        cv2.line(frame, (0, 220), (width, 220), (90, 85, 75), 2)
         
-        # Lane markers
-        for lx in range((f * 4) % 70, width, 70):
-            cv2.line(frame, (lx, 325), (lx + 35, 325), (170, 170, 160), 2)
+        # Road divider & dashed lane lines
+        for lx in range((f * 3) % 80, width, 80):
+            cv2.line(frame, (lx, 335), (lx + 40, 335), (180, 180, 170), 2)
 
-        # Border security fence
-        for fence_x in range(0, width, 35):
-            cv2.line(frame, (fence_x, 145), (fence_x, 195), (85, 85, 85), 1)
-        cv2.line(frame, (0, 165), (width, 165), (95, 95, 95), 1)
-        cv2.line(frame, (0, 180), (width, 180), (95, 95, 95), 1)
+        # Border outpost fence & checkpoint barrier
+        for fence_x in range(0, width, 30):
+            cv2.line(frame, (fence_x, 150), (fence_x, 210), (75, 75, 75), 1)
+        cv2.line(frame, (0, 170), (width, 170), (85, 85, 85), 1)
+        cv2.line(frame, (0, 190), (width, 190), (85, 85, 85), 1)
 
-        # Draw persons
-        for p in persons:
-            p["x"] += p["dx"]
-            p["y"] += p["dy"]
-            if p["x"] < 40 or p["x"] > width - 40:
-                p["dx"] *= -1
-            if p["y"] < 210 or p["y"] > 270:
-                p["dy"] *= -1
-            draw_walking_human(frame, int(p["x"]), int(p["y"]), p["scale"], f)
+        # 2. Draw Pedestrians
+        for p in pedestrians_config:
+            px = int(p["start_x"] + np.sin(f * 0.04 + p.get("phase", 0)) * p.get("range", 80))
+            py = int(p["y"])
+            draw_realistic_pedestrian(frame, px, py, scale=p.get("scale", 0.9), frame_idx=f)
 
-        # Draw vehicles
-        for v in vehicles:
+        # 3. Draw Vehicles with Plates
+        for v in rendered_vehicles:
             v["x"] += v["dx"]
-            if v["dx"] > 0 and v["x"] > width + 140:
-                v["x"] = -140
-            elif v["dx"] < 0 and v["x"] < -140:
-                v["x"] = width + 140
+            if v["dx"] > 0 and v["x"] > width + 180:
+                v["x"] = -180
+            elif v["dx"] < 0 and v["x"] < -180:
+                v["x"] = width + 180
 
-            overlay_vehicle_sprite(
-                frame,
-                v["sprite"],
-                int(v["x"]),
-                int(v["y"]),
-                plate_text=v["plate"]
-            )
+            vx = int(v["x"])
+            vy = int(v["y"])
+            sh, sw = v["sprite"].shape[:2]
+
+            x1 = vx - sw // 2
+            y1 = vy - sh // 2
+            x2 = x1 + sw
+            y2 = y1 + sh
+
+            # Crop bounds
+            cx1 = max(0, x1)
+            cy1 = max(0, y1)
+            cx2 = min(width, x2)
+            cy2 = min(height, y2)
+
+            if (cx2 - cx1) > 10 and (cy2 - cy1) > 10:
+                sx1 = cx1 - x1
+                sy1 = cy1 - y1
+                sx2 = sx1 + (cx2 - cx1)
+                sy2 = sy1 + (cy2 - cy1)
+
+                # Ground shadow
+                shadow_y = min(height - 4, cy2 + 4)
+                cv2.ellipse(frame, (vx, shadow_y), (sw // 2 + 15, 16), 0, 0, 360, (15, 15, 15), -1)
+
+                # Paste vehicle
+                frame[cy1:cy2, cx1:cx2] = v["sprite"][sy1:sy2, sx1:sx2]
 
         out.write(frame)
 
     out.release()
-    print(f"[DemoGenerator] Generated video with persons + vehicles at: {filepath}")
+    print(f"[DemoGenerator] Generated realistic video for {camera_name} at: {filepath}")
 
 
 def ensure_demo_assets(force_regenerate: bool = False):
     """
-    Checks if demo videos exist in assets/demo_cctv/, generates them if missing or forced.
+    Creates/updates the realistic surveillance videos for all 3 demo cameras.
     """
     DEMO_CCTV_DIR.mkdir(parents=True, exist_ok=True)
-    cctv_configs = [
-        ("border_demo_01.mp4", 3, 2),
-        ("border_demo_02.mp4", 2, 2),
-        ("border_demo_03.mp4", 2, 1)
+
+    cameras_data = [
+        (
+            "border_demo_01.mp4",
+            "CAM-01 Longewala Outpost",
+            [
+                {"type": "CAR", "w": 280, "h": 180, "plate": "MH12AB1234", "start_x": 120, "start_y": 310, "dx": 2.2},
+                {"type": "BUS", "w": 300, "h": 190, "plate": "DL01CD5678", "start_x": 520, "start_y": 345, "dx": -1.8}
+            ],
+            [
+                {"start_x": 220, "y": 240, "scale": 0.85, "range": 60, "phase": 0},
+                {"start_x": 480, "y": 245, "scale": 0.90, "range": 75, "phase": 1.5}
+            ]
+        ),
+        (
+            "border_demo_02.mp4",
+            "CAM-02 Wagah-Attari Gate",
+            [
+                {"type": "CAR", "w": 280, "h": 180, "plate": "RJ14EF9012", "start_x": 180, "start_y": 315, "dx": 2.5},
+                {"type": "CAR", "w": 280, "h": 180, "plate": "HR26DQ5551", "start_x": 600, "start_y": 335, "dx": -2.1}
+            ],
+            [
+                {"start_x": 300, "y": 240, "scale": 0.88, "range": 70, "phase": 0.8}
+            ]
+        ),
+        (
+            "border_demo_03.mp4",
+            "CAM-03 Galwan LAC",
+            [
+                {"type": "BUS", "w": 300, "h": 190, "plate": "UP16AB1234", "start_x": 200, "start_y": 330, "dx": 2.0},
+                {"type": "CAR", "w": 280, "h": 180, "plate": "KA05GH3456", "start_x": 540, "start_y": 310, "dx": -2.3}
+            ],
+            [
+                {"start_x": 180, "y": 245, "scale": 0.85, "range": 50, "phase": 0},
+                {"start_x": 420, "y": 240, "scale": 0.90, "range": 65, "phase": 2.2}
+            ]
+        )
     ]
-    for filename, p_count, v_count in cctv_configs:
-        target_path = DEMO_CCTV_DIR / filename
-        if not target_path.exists() or force_regenerate:
-            print(f"[DemoGenerator] Generating synthetic video for '{filename}'...")
-            generate_demo_cctv_video(target_path, num_persons=p_count, num_vehicles=v_count, duration_sec=20, fps=25)
+
+    for filename, cam_name, v_cfgs, p_cfgs in cameras_data:
+        target = DEMO_CCTV_DIR / filename
+        if not target.exists() or force_regenerate:
+            generate_cctv_simulation_video(target, cam_name, v_cfgs, p_cfgs, duration_sec=20, fps=25)
 
 
 if __name__ == "__main__":
