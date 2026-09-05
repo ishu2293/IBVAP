@@ -1,246 +1,181 @@
 # IBVAP – Intelligent Border Video Analytics Platform
-## Module 01: Real-Time Human Detection & Tracking System
 
-[![System Status](https://img.shields.io/badge/System-ONLINE-10b981?style=for-the-badge)](http://localhost:3000)
-[![YOLO Engine](https://img.shields.io/badge/YOLO-v11n-007acc?style=for-the-badge)](https://github.com/ultralytics/ultralytics)
+[![System Status](https://img.shields.io/badge/System-ONLINE-10b981?style=for-the-badge)](http://localhost:8000)
+[![AI Engine](https://img.shields.io/badge/YOLO-v11n-007acc?style=for-the-badge)](https://github.com/ultralytics/ultralytics)
 [![Tracking](https://img.shields.io/badge/Tracker-ByteTrack-8b5cf6?style=for-the-badge)](https://github.com/ifzhang/ByteTrack)
+[![ANPR](https://img.shields.io/badge/ANPR-EasyOCR-f59e0b?style=for-the-badge)](https://github.com/JaidedAI/EasyOCR)
+[![Face Biometrics](https://img.shields.io/badge/Biometrics-OpenCV_SFace-ec4899?style=for-the-badge)](https://docs.opencv.org/)
+[![Virtual Fence](https://img.shields.io/badge/Security-Virtual_Fence-ef4444?style=for-the-badge)](#-5-virtual-fence--intrusion-detection)
 
-The **Human Detection and Tracking System** is the core foundational module of the **Intelligent Border Video Analytics Platform (IBVAP)**. It processes live CCTV feeds and pre-recorded surveillance videos in real time to detect humans, continuously track each person across frames using persistent Track IDs (`P-001`, `P-002`), calculate ground foot-point coordinates, estimate movement directions (`NORTH`, `SOUTH-EAST`, `STATIONARY`), and draw visual movement trails.
-
----
-
-## 🎯 Key Capabilities
-
-- **Real-Time YOLO Person Detection**: Uses Ultralytics YOLO (`yolo11n.pt` nano model) strictly filtered for COCO `person` class with configurable confidence threshold (default: `0.5`).
-- **Persistent ByteTrack Object Tracking**: Assigns unique Track IDs (`P-001`, `P-002`) that persist across frames, handle path crossovers, short occlusions, and brief detection losses.
-- **Position & Spatial History**: Computes center point `(cx, cy)` and ground foot point `(fx, fy)`. Maintains a memory-capped history deque for motion trails.
-- **Direction Estimation**: Calculates real-time cardinal movement direction (`NORTH`, `SOUTH`, `EAST`, `WEST`, `NORTH-EAST`, `NORTH-WEST`, `SOUTH-EAST`, `SOUTH-WEST`, `STATIONARY`) using noise-filtering displacement thresholds.
-- **Demo CCTV & Upload Modes**:
-  - **Mode 1 – Upload Video**: Process custom MP4, AVI, MOV, or MKV video files.
-  - **Mode 2 – Demo CCTV**: Multi-camera border command center simulation (`CAM-01 Border Sector A`, `CAM-02 Border Road B`, `CAM-03 BOP North`) with live CCTV HUD overlays (🔴 LIVE indicator, camera name, location, timestamp, frame counter, active track count).
-- **Border Security Command Center UI**: Modern, dark-themed React + TypeScript dashboard with live telemetry counters (Persons Detected, Active Tracks, Total Unique Tracks, Processing FPS, Hardware Device: CPU/CUDA), active person list, and interactive track detail inspector.
+The **Intelligent Border Video Analytics Platform (IBVAP)** is a comprehensive real-time surveillance and border security AI platform. It unifies human tracking, biometric facial recognition, vehicle classification, automatic number plate recognition (ANPR), virtual fence perimeter protection, and real-time security alerts into a command-center dashboard.
 
 ---
 
-## 🏗️ Architecture & Modular Design
+## 🎯 Core Features & Capabilities
 
-The system is designed with a future-ready modular architecture allowing seamless integration of downstream analytics (Vehicle Detection, ANPR, Face Recognition, Intrusion Rules, Risk & Alert Engines).
+### 1. Human Detection & Tracking
+- **YOLO Detection**: Real-time person detection powered by YOLO (`yolo11n.pt`).
+- **ByteTrack Multi-Object Tracking**: Assigns persistent Track IDs (`P-001`, `P-002`) across frames, handling occlusions and crossovers.
+- **Ground Foot-Point Calculation**: Computes exact ground coordinates `(fx, fy)` and movement trails.
+- **Cardinal Direction Estimation**: Dynamically calculates movement direction (`NORTH`, `SOUTH-EAST`, `STATIONARY`).
+
+### 2. Facial Biometrics & Personnel Watchlist
+- **OpenCV YuNet Face Detector**: High-speed edge detector operating on person head regions.
+- **OpenCV SFace Biometric Recognizer**: Generates 128-dimensional L2-normalized facial embeddings.
+- **Watchlist Verification**: Verifies identities against registered border personnel (`Verified Staff` vs `UNKNOWN`).
+- **Identity Consensus**: Locks biometric identities across consecutive frames to prevent flickering.
+
+### 3. Vehicle Detection & Classification
+- **Multi-Class Vehicle Tracking**: Identifies and tracks `CAR`, `TRUCK`, `BUS`, and `MOTORCYCLE` (`V-001`, `V-002`).
+- **Movement Trajectories & Speed Estimation**: Computes vehicle trajectories and motion states.
+
+### 4. Automatic Number Plate Recognition (ANPR)
+- **License Plate Localization**: Detects license plate bounding boxes on vehicle bumpers.
+- **OCR Engine**: Recognizes registration numbers using high-contrast plate filtering and EasyOCR.
+- **Multi-Frame Consensus**: Aggregates OCR reads over time to confirm license plate readings.
+
+### 5. Virtual Fence & Intrusion Detection
+- **Dual Geometry Support**:
+  - **Polygon Zones**: Configurable restricted areas using point-in-polygon tests (`cv2.pointPolygonTest`).
+  - **Line-Crossing Fences**: Segment-intersection tracking of foot-point trajectories.
+- **Interactive Video Drawing**: Draw fences directly on the live CCTV video with Polygon and Line modes.
+- **Normalized Coordinates `[0.0 - 1.0]`**: Full resolution independence across all video sizes and screens.
+- **Anti-Spam State Machine**: Triggers 1 alert when a person enters (`OUTSIDE -> INSIDE`), suppresses repeated alerts while inside, and triggers fresh alerts on exit $\to$ re-entry.
+- **Configurable Cooldown**: 5-second debounce window per `(person_id, fence_id)`.
+- **Evidence Snapshots**: Captures an annotated evidence snapshot with bounding boxes, person ID, biometric identity, zone name, timestamp, and camera ID.
+
+### 6. Real-Time Security Alerts & Audio Alarm
+- **Instant Telemetry Streaming**: Real-time alerts over WebSocket `/ws/video`.
+- **Web Audio Alarm Synthesizer**: Browser-side dual-tone alert chime with toggleable `🔊 Alert Sound: ON / OFF`.
+- **Security Breach Log**: View historical breach events with camera filters and evidence snapshot inspection.
+
+### 7. Dual Video Modes
+- **Demo CCTV Mode**: Pre-configured feeds from simulated Indian border outposts (`CAM-01 Longewala`, `CAM-02 Wagah-Attari`, `CAM-03 Galwan LAC`) with CCTV HUD overlays.
+- **Video Upload Mode**: Support for user-uploaded MP4, AVI, MOV, and MKV video files.
+
+---
+
+## 🔄 Overall Flow of the Project
+
+The end-to-end data pipeline processes video frames through a modular, single-pass pipeline:
 
 ```text
-               +----------------------------------+
-               |        Input Source              |
-               | (Upload MP4 / Demo CCTV Cameras) |
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               |      FastAPI Video Processor     |
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               |   YOLO Person Detection (Class 0)|
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               |      ByteTrack Object Tracker    |
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               | Spatial Position & History Buffer|
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               | Movement Analyzer (Direction/Vel)|
-               +----------------------------------+
-                                |
-                                v
-               +----------------------------------+
-               |  OpenCV Overlay & Telemetry JSON |
-               +----------------------------------+
-                                |
-                     (WebSocket /ws/video)
-                                |
-                                v
-               +----------------------------------+
-               |  React Command Center Dashboard  |
-               +----------------------------------+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            VIDEO INPUT SOURCE                               │
+│                (Demo CCTV Outposts / Uploaded Video File)                   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    UNIFIED MULTI-OBJECT DETECTION & TRACKING                │
+│                 YOLO (Person & Vehicle) + ByteTrack Engine                  │
+└──────────────────────┬───────────────────────────────┬──────────────────────┘
+                       │                               │
+       [Person Tracks: P-001, P-002]       [Vehicle Tracks: V-001, V-002]
+                       │                               │
+                       ▼                               ▼
+┌──────────────────────────────────────┐  ┌───────────────────────────────────┐
+│     FACIAL BIOMETRIC RECOGNITION     │  │       ANPR & OCR ENGINE           │
+│   YuNet Detector + SFace Embedder    │  │   Plate Detector + EasyOCR Engine │
+│  (Verified Personnel vs UNKNOWN)     │  │   (Multi-Frame Plate Consensus)   │
+└──────────────────────┬───────────────┘  └─────────────────┬─────────────────┘
+                       │                                    │
+                       ▼                                    │
+┌──────────────────────────────────────┐                    │
+│    VIRTUAL FENCE & INTRUSION ENGINE  │                    │
+│   - Foot-Point vs Polygon / Line     │                    │
+│   - State Transition (OUT -> IN)     │                    │
+│   - Anti-Spam Debounce & Cooldown    │                    │
+│   - Evidence Snapshot Capture        │                    │
+└──────────────────────┬───────────────┘                    │
+                       │                                    │
+                       ▼                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    VISUAL OVERLAY & TELEMETRY GENERATOR                     │
+│  - Bounding Boxes, Foot Points, Direction, Face Badges & Plate Tags         │
+│  - Virtual Fence Overlay + ⚠ INTRUSION Highlighting                          │
+│  - CCTV Command HUD Overlay                                                 │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ (WebSocket Stream)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  REACT COMMAND CENTER DASHBOARD (FRONTEND)                  │
+│  ├── Live CCTV Video Player & Interactive Fence Drawing Canvas              │
+│  ├── Real-Time Security Intrusion Feed & Web Audio Alarm Synthesizer        │
+│  ├── Active Tracking Panels (Vehicles, Persons, Virtual Fences)             │
+│  ├── Live Telemetry Stats (Persons, Vehicles, ANPR Reads, Breaches, FPS)    │
+│  └── Dedicated Views (ANPR Logs, Face Watchlist, Security Breaches History) │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📁 Project Structure
-
-```text
-person detection and tracking/
-│
-├── backend/
-│   ├── main.py                   # FastAPI server, WebSocket endpoint & CORS config
-│   ├── config.py                 # System parameters (YOLO model, confidence, frame skip, cameras)
-│   │
-│   ├── ai/
-│   │   ├── detector.py           # PersonDetector class (Ultralytics YOLO)
-│   │   ├── tracker.py            # PersonTracker class (ByteTrack integration)
-│   │   └── human_tracker.py      # Unified HumanTracker module
-│   │
-│   ├── services/
-│   │   ├── video_processor.py    # Main stream loop, overlay rendering & FPS calculator
-│   │   ├── position_tracker.py   # Center & foot point calculation + history deque
-│   │   └── movement_analyzer.py  # Cardinal movement direction & motion status
-│   │
-│   ├── models/
-│   │   └── tracking_models.py    # Pydantic schemas (Detection, TrackData, FrameTelemetry)
-│   │
-│   ├── api/
-│   │   ├── video.py              # Upload & camera list endpoints
-│   │   └── tracking.py           # Track details & system status endpoints
-│   │
-│   └── utils/
-│       ├── draw.py               # Overlay drawing (boxes, labels, trails, CCTV HUD)
-│       └── demo_generator.py     # Synthetic demo CCTV video generator
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Header.jsx        # Command center top bar & mode switcher
-│   │   │   ├── VideoPlayer.jsx   # Live stream canvas, player controls & frame skip slider
-│   │   │   ├── CameraSelector.jsx# CCTV camera switcher buttons
-│   │   │   ├── StatsPanel.jsx    # Telemetry stat cards
-│   │   │   ├── TrackListPanel.jsx# Active person list
-│   │   │   └── TrackDetailPanel.jsx # Single track inspection drawer
-│   │   ├── services/
-│   │   │   └── api.js            # Axios REST client & WebSocket manager
-│   │   ├── App.jsx               # Root dashboard container
-│   │   ├── index.css             # Tailwind directives & command center theme
-│   │   └── main.jsx
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   └── index.html
-│
-├── assets/
-│   └── demo_cctv/                # Sample video assets (auto-generated if missing)
-│
-├── models/                       # Downloaded YOLO models (e.g. yolo11n.pt)
-├── requirements.txt
-└── README.md
-```
-
----
-
-## ⚡ Setup & Installation
+## ⚡ Quick Start Guide
 
 ### Prerequisites
-
-- **Python**: `3.10` or higher (Tested on Python 3.13)
-- **Node.js**: `v18` or higher (Tested on Node v22)
-- **Git**
+- **Python**: `3.10+` (Tested on Python 3.13)
+- **Node.js**: `v18+` (Tested on Node v22)
 
 ---
 
-### 1. Backend Setup
+### Running the Application
 
-1. Open terminal in the project root:
-   ```bash
-   python -m venv venv
-   ```
-2. Activate virtual environment:
-   - **Windows (PowerShell)**:
-     ```powershell
-     .\venv\Scripts\Activate.ps1
-     ```
-   - **Linux / macOS**:
-     ```bash
-     source venv/bin/activate
-     ```
-3. Install required Python packages:
+Since the frontend is pre-compiled in `frontend/dist`, you can run the entire platform with a single backend command:
+
+1. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-4. Start the FastAPI backend server:
+
+2. **Start the server**:
    ```bash
-   uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+   python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
    ```
-   The backend API will be available at `http://localhost:8000`.
+
+3. **Open the Dashboard**:
+   Navigate to [http://localhost:8000](http://localhost:8000) in your web browser.
 
 ---
 
-### 2. Frontend Setup
+### Development Mode (Optional)
 
-1. Open a new terminal in the `frontend/` directory:
+To run the frontend dev server with Hot Module Replacement (HMR):
+
+1. **Terminal 1 (Backend)**:
+   ```bash
+   python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+2. **Terminal 2 (Frontend)**:
    ```bash
    cd frontend
    npm install
-   ```
-2. Launch the Vite development server:
-   ```bash
    npm run dev
    ```
-3. Open your browser and navigate to:
-   ```text
-   http://localhost:3000
-   ```
+   Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 📖 How to Use
+## 📖 How to Use the Platform
 
-### Mode 1: Demo CCTV Mode
-
-1. Select **"Demo CCTV"** in the top header bar.
-2. Choose one of the pre-configured border surveillance cameras:
-   - **CAM-01**: Border Sector A (North Fence Gate 4)
-   - **CAM-02**: Border Road B (Patrol Route Bravo)
-   - **CAM-03**: BOP North Outpost (Observation Tower 2)
-3. Click **START DETECTION**.
-4. The live video stream will render bounding boxes, persistent Track IDs (`P-001`), confidence scores, center/foot points, movement trails, and the simulated CCTV HUD.
-5. Click any active track card on the right panel to open its **Track Details** and highlight that person on the video canvas.
-
-### Mode 2: Upload Video Mode
-
-1. Select **"Upload Video"** in the top header bar.
-2. Drag & drop an MP4, AVI, MOV, or MKV video file into the dropzone (or click "Select Video").
-3. Click **START DETECTION**.
-4. Adjust the **"Process Every: 1x / 2x / 3x"** frame skipping control if needed for CPU performance optimization.
+1. **Live Surveillance**:
+   - Select **Demo CCTV** (or switch to **Upload** mode for custom video).
+   - Click **`START DETECTION`** to begin streaming.
+2. **Virtual Fence & Perimeter Control**:
+   - In the right sidebar, switch to the **`FENCES`** tab.
+   - Click **`Draw on Video`**, choose **Polygon Zone** or **Line Crossing**, and click points directly on the video canvas.
+   - Click **`Save Fence`**.
+   - Violations trigger an immediate visual highlight, alert card, browser alarm sound, and evidence snapshot.
+3. **Personnel & Vehicle Tracking**:
+   - Switch between **`VEHICLES`** and **`PERSONS`** in the sidebar to inspect individual active tracks.
+   - Click any track card to highlight that object on the video and open detailed telemetry.
+4. **Historical Logs**:
+   - **`ANPR Logs`**: Review recognized vehicle license plates.
+   - **`Face Watchlist`**: Manage registered personnel and view face scan events.
+   - **`Security Breaches`**: Inspect all recorded virtual fence intrusions and view saved evidence snapshots.
 
 ---
 
-## 🧠 AI AI Algorithms Explained
+## 🔒 Privacy & Biometrics Notice
 
-### 1. YOLO Person Detection
-
-Ultralytics YOLO performs single-pass real-time object detection. The model evaluates candidate regions and outputs bounding box coordinates `[x1, y1, x2, y2]`, confidence scores, and class labels. The system strictly filters for COCO class ID `0` (`person`), ignoring non-human objects.
-
-### 2. ByteTrack Tracking
-
-Unlike traditional trackers that discard low-confidence detections, **ByteTrack** retains low-confidence bounding boxes to maintain track continuity during temporary occlusions or motion blur. It uses Kalman filtering for state estimation and Hungarian algorithm matching based on Intersection over Union (IoU) to map detections to track IDs (`P-001`, `P-002`).
-
-### 3. Face Detection & Recognition (Module 04)
-
-- **YuNet Face Detector (`face_detection_yunet_2023mar.onnx`)**: High-speed edge DNN model built into OpenCV (`cv2.FaceDetectorYN`). Restricts detection to the upper head-region of each detected person (`P-001`, `P-002`) to optimize CPU processing by 10x and associate faces directly with track IDs.
-- **SFace Face Embedder (`face_recognition_sface_2021dec.onnx`)**: Deep feature extractor built into OpenCV (`cv2.FaceRecognizerSF`). Aligns faces using 5 facial landmarks (eyes, nose, mouth corners) and produces 128-dimensional L2-normalized biometric embeddings.
-- **Cosine Similarity Verification**: Compares real-time embeddings against authorized personnel in the local watchlist database (`assets/registered_faces/face_registry.json`).
-- **Identity Consensus & Event De-duplication**: Locks recognized identities to track IDs across consecutive frames, logging `FACE_RECOGNIZED` and `UNKNOWN_FACE` events with an intelligent cooldown window to eliminate event spam.
-
----
-
-## 🔒 Biometric Data & Privacy Notice
-
-> **Privacy Notice**: Facial recognition is intended for authorized security monitoring. Facial images and biometric information are processed only for the intended surveillance purpose and should be handled according to applicable organizational policies, privacy requirements, and data-retention rules. Stored biometric embeddings are restricted to local secure storage.
-
----
-
-## 🔮 Future Extensions
-
-This module exposes clean interfaces for planned downstream IBVAP capabilities:
-- **Module 05**: Virtual Perimeter Intrusion & Loitering Analytics
-- **Module 06**: Unified Border Risk & Threat Assessment Engine
-
----
-
-## 📄 License
-
-Internal IBVAP Proprietary Platform. All rights reserved.
+> **Security & Privacy**: Biometric facial identification and ANPR recognition are restricted to authorized surveillance monitoring. All embeddings and snapshots are stored locally and securely in the application asset directories.
