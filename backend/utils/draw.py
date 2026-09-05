@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import hashlib
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, Set
 
 def get_track_color(track_id: str) -> Tuple[int, int, int]:
     """
@@ -24,19 +24,134 @@ def get_track_color(track_id: str) -> Tuple[int, int, int]:
         
     return (b, g, r)  # BGR order for OpenCV
 
+
+def draw_virtual_fences(
+    frame: np.ndarray,
+    fences: List[Any],
+    active_fence_ids: Optional[Set[str]] = None
+) -> np.ndarray:
+    """
+    Renders polygon and line-crossing virtual fences on the video frame.
+    Highlights fences experiencing active intrusion in warning red/amber.
+    """
+    if not fences:
+        return frame
+
+    overlay_frame = frame.copy()
+    h_img, w_img = overlay_frame.shape[:2]
+    active_ids = active_fence_ids or set()
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
+    # Overlay layer for translucent polygon fills
+    poly_mask = np.zeros_like(frame, dtype=np.uint8)
+    has_poly_fill = False
+
+    for fence in fences:
+        # Support both Pydantic models and dicts
+        fid = getattr(fence, "id", None) or fence.get("id", "FENCE")
+        fname = getattr(fence, "name", None) or fence.get("name", "Zone")
+        ftype = getattr(fence, "type", None) or fence.get("type", "polygon")
+        fpoints = getattr(fence, "points", None) or fence.get("points", [])
+        fseverity = getattr(fence, "severity", None) or fence.get("severity", "HIGH")
+        fenabled = getattr(fence, "enabled", True) if hasattr(fence, "enabled") else fence.get("enabled", True)
+
+        if not fenabled or len(fpoints) < 2:
+            continue
+
+        is_intruded = fid in active_ids
+
+        # Colors
+        if is_intruded:
+            color = (0, 0, 255)       # Bright Red for Intrusion
+            fill_color = (0, 0, 180)
+            tag_text = f"🚨 INTRUSION | {fname}"
+        elif fseverity == "CRITICAL":
+            color = (0, 140, 255)     # Amber for Critical Zone
+            fill_color = (0, 100, 200)
+            tag_text = f"ZONE | {fname}"
+        else:
+            color = (255, 190, 0)     # Bright Cyan for Restricted Border Zone
+            fill_color = (180, 120, 0)
+            tag_text = f"ZONE | {fname}"
+
+        # Scale normalized points
+        pts = np.array([
+            [int(pt[0] * w_img), int(pt[1] * h_img)]
+            for pt in fpoints
+        ], dtype=np.int32)
+
+        if ftype == "polygon" and len(pts) >= 3:
+            # Fill polygon on mask
+            cv2.fillPoly(poly_mask, [pts], fill_color)
+            has_poly_fill = True
+
+            # Draw polygon outline
+            cv2.polylines(overlay_frame, [pts], isClosed=True, color=color, thickness=2, lineType=cv2.LINE_AA)
+
+            # Draw corner vertex markers
+            for pt in pts:
+                cv2.circle(overlay_frame, (pt[0], pt[1]), 4, color, -1)
+                cv2.circle(overlay_frame, (pt[0], pt[1]), 6, (255, 255, 255), 1)
+
+            # Draw label badge at the top-left-most vertex
+            top_pt = min(pts, key=lambda p: (p[1], p[0]))
+            tx, ty = top_pt[0], top_pt[1]
+
+            sz, _ = cv2.getTextSize(tag_text, font, 0.40, 1)
+            bx1 = max(4, tx - 2)
+            by1 = max(4, ty - sz[1] - 8)
+            bx2 = min(w_img - 4, bx1 + sz[0] + 12)
+            by2 = by1 + sz[1] + 6
+
+            cv2.rectangle(overlay_frame, (bx1, by1), (bx2, by2), (15, 18, 25), -1)
+            cv2.rectangle(overlay_frame, (bx1, by1), (bx2, by2), color, 1)
+            cv2.putText(overlay_frame, tag_text, (bx1 + 5, by2 - 4), font, 0.40, color, 1, cv2.LINE_AA)
+
+        elif ftype == "line" and len(pts) >= 2:
+            p1 = tuple(pts[0])
+            p2 = tuple(pts[1])
+
+            # Draw virtual fence line
+            cv2.line(overlay_frame, p1, p2, color, 3 if is_intruded else 2, cv2.LINE_AA)
+            cv2.circle(overlay_frame, p1, 5, color, -1)
+            cv2.circle(overlay_frame, p2, 5, color, -1)
+
+            # Midpoint label
+            mx = (p1[0] + p2[0]) // 2
+            my = (p1[1] + p2[1]) // 2
+            line_tag = f"LINE | {fname}" if not is_intruded else f"🚨 LINE CROSSED | {fname}"
+            sz, _ = cv2.getTextSize(line_tag, font, 0.38, 1)
+            bx1 = max(4, mx - sz[0] // 2 - 6)
+            by1 = max(4, my - sz[1] - 6)
+            bx2 = min(w_img - 4, bx1 + sz[0] + 12)
+            by2 = by1 + sz[1] + 6
+
+            cv2.rectangle(overlay_frame, (bx1, by1), (bx2, by2), (15, 18, 25), -1)
+            cv2.rectangle(overlay_frame, (bx1, by1), (bx2, by2), color, 1)
+            cv2.putText(overlay_frame, line_tag, (bx1 + 5, by2 - 4), font, 0.38, color, 1, cv2.LINE_AA)
+
+    # Blend translucent fills
+    if has_poly_fill:
+        cv2.addWeighted(poly_mask, 0.22, overlay_frame, 1.0, 0, overlay_frame)
+
+    return overlay_frame
+
+
 def draw_tracking_overlays(
     frame: np.ndarray,
     person_tracks: List[Dict[str, Any]],
     vehicle_tracks: List[Dict[str, Any]],
-    selected_track_id: Optional[str] = None
+    selected_track_id: Optional[str] = None,
+    active_intrusions_map: Optional[Dict[str, Set[str]]] = None
 ) -> np.ndarray:
     """
     Draws bounding boxes, track IDs, confidence, vehicle classification,
     license plates, movement trails, center points, and foot points on the video frame.
-    Supports both Human and Vehicle pipelines simultaneously.
+    Seamlessly adds intrusion tags when a person violates a virtual fence.
     """
     overlay_frame = frame.copy()
     h_img, w_img = overlay_frame.shape[:2]
+    intrusions_map = active_intrusions_map or {}
 
     # 1. Draw Person Tracks
     for track in person_tracks:
@@ -49,10 +164,13 @@ def draw_tracking_overlays(
         center = track.get("center", None)
 
         x1, y1, x2, y2 = map(int, bbox)
-        color = get_track_color(track_id)
+        is_intruder = track_id in intrusions_map and len(intrusions_map[track_id]) > 0
+        
+        # Color: If intruder, emphasize with red accent while keeping base color distinguishable
+        color = (0, 0, 255) if is_intruder else get_track_color(track_id)
         
         is_selected = (selected_track_id == track_id)
-        thickness = 3 if is_selected else 2
+        thickness = 3 if (is_selected or is_intruder) else 2
 
         # Bounding box
         cv2.rectangle(overlay_frame, (x1, y1), (x2, y2), color, thickness)
@@ -97,22 +215,36 @@ def draw_tracking_overlays(
         elif face_info and face_status == "unknown":
             label_id = f"{track_id} | UNKNOWN"
             label_conf = f"UNREGISTERED ({int(conf * 100)}%)"
-            header_bg = (20, 60, 140)  # Dark Amber/Red Alert
+            header_bg = (20, 60, 140)  # Dark Amber/Alert
         else:
             label_conf = f"PERSON {int(conf * 100)}%"
             header_bg = color
 
+        # Intrusion Sub-badge if active
+        intrusion_tag = "⚠ INTRUSION | HIGH" if is_intruder else None
+
         text_size_id, _ = cv2.getTextSize(label_id, font, 0.42, 1)
         text_size_conf, _ = cv2.getTextSize(label_conf, font, 0.38, 1)
-        header_h = text_size_id[1] + text_size_conf[1] + 10
-        header_w = max(text_size_id[0], text_size_conf[0]) + 12
+        text_size_intr = cv2.getTextSize(intrusion_tag, font, 0.38, 1)[0] if intrusion_tag else (0, 0)
+        
+        header_h = text_size_id[1] + text_size_conf[1] + 10 + (text_size_intr[1] + 6 if intrusion_tag else 0)
+        header_w = max(text_size_id[0], text_size_conf[0], text_size_intr[0]) + 12
 
         header_y1 = max(0, y1 - header_h - 2)
         header_y2 = max(header_h + 2, y1)
-        cv2.rectangle(overlay_frame, (x1, header_y1), (x1 + header_w, header_y2), header_bg, -1)
+        cv2.rectangle(overlay_frame, (x1, header_y1), (x1 + header_w, header_y2), header_bg if not is_intruder else (15, 15, 140), -1)
+        if is_intruder:
+            cv2.rectangle(overlay_frame, (x1, header_y1), (x1 + header_w, header_y2), (0, 0, 255), 1)
 
-        cv2.putText(overlay_frame, label_id, (x1 + 4, header_y1 + text_size_id[1] + 2), font, 0.42, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(overlay_frame, label_conf, (x1 + 4, header_y1 + text_size_id[1] + text_size_conf[1] + 6), font, 0.38, (220, 220, 220), 1, cv2.LINE_AA)
+        curr_y = header_y1 + text_size_id[1] + 2
+        cv2.putText(overlay_frame, label_id, (x1 + 4, curr_y), font, 0.42, (255, 255, 255), 2, cv2.LINE_AA)
+        
+        curr_y += text_size_conf[1] + 4
+        cv2.putText(overlay_frame, label_conf, (x1 + 4, curr_y), font, 0.38, (220, 220, 220), 1, cv2.LINE_AA)
+
+        if intrusion_tag:
+            curr_y += text_size_intr[1] + 4
+            cv2.putText(overlay_frame, intrusion_tag, (x1 + 4, curr_y), font, 0.38, (0, 255, 255), 1, cv2.LINE_AA)
 
         # Direction text
         dir_text = f"PERSON | {direction}"
@@ -122,7 +254,7 @@ def draw_tracking_overlays(
         if center:
             cv2.circle(overlay_frame, (int(center[0]), int(center[1])), 3, (0, 255, 255), -1)
         if foot_point:
-            cv2.circle(overlay_frame, (int(foot_point[0]), int(foot_point[1])), 4, color, -1)
+            cv2.circle(overlay_frame, (int(foot_point[0]), int(foot_point[1])), 4, (0, 0, 255) if is_intruder else color, -1)
 
         # Movement Trail
         if history and len(history) > 1:
@@ -230,7 +362,8 @@ def draw_cctv_hud(
     current_persons: int,
     current_vehicles: int,
     anpr_reads: int,
-    fps: float
+    fps: float,
+    active_intrusions_count: int = 0
 ) -> np.ndarray:
     """
     Draws a command center CCTV HUD overlay on the frame.
@@ -247,7 +380,7 @@ def draw_cctv_hud(
     cv2.putText(hud_frame, cam_info, (100, 30), font, 0.45, (220, 220, 220), 1, cv2.LINE_AA)
 
     # Top right: AI ANALYTICS ACTIVE badge
-    ai_badge = "AI ANALYTICS ACTIVE (HUMAN + VEHICLE + ANPR)"
+    ai_badge = "AI ANALYTICS ACTIVE (HUMAN + VEHICLE + FENCE)"
     sz_badge, _ = cv2.getTextSize(ai_badge, font, 0.38, 1)
     cv2.rectangle(hud_frame, (w - sz_badge[0] - 25, 14), (w - 15, 38), (15, 35, 25), -1)
     cv2.rectangle(hud_frame, (w - sz_badge[0] - 25, 14), (w - 15, 38), (0, 255, 128), 1)
@@ -255,7 +388,7 @@ def draw_cctv_hud(
 
     # Corner brackets overlay (Security camera vibe)
     bracket_len = min(w, h) // 15
-    b_color = (0, 255, 0)
+    b_color = (0, 0, 255) if active_intrusions_count > 0 else (0, 255, 0)
     # Top-Left
     cv2.line(hud_frame, (10, 10), (10 + bracket_len, 10), b_color, 2)
     cv2.line(hud_frame, (10, 10), (10, 10 + bracket_len), b_color, 2)
@@ -274,7 +407,9 @@ def draw_cctv_hud(
     cv2.rectangle(hud_frame, (0, h - bottom_bar_h), (w, h), (10, 15, 25), -1)
     cv2.line(hud_frame, (0, h - bottom_bar_h), (w, h - bottom_bar_h), (30, 45, 65), 1)
     
-    stats_str = f"PERSONS: {current_persons:02d}   VEHICLES: {current_vehicles:02d}   ANPR READS: {anpr_reads:02d}   FPS: {fps:.1f}   SYSTEM: IBVAP-V2.0"
-    cv2.putText(hud_frame, stats_str, (15, h - 10), font, 0.45, (0, 255, 160), 1, cv2.LINE_AA)
+    intr_str = f"   INTRUSIONS: {active_intrusions_count:02d}" if active_intrusions_count > 0 else ""
+    stats_str = f"PERSONS: {current_persons:02d}   VEHICLES: {current_vehicles:02d}   ANPR: {anpr_reads:02d}{intr_str}   FPS: {fps:.1f}   SYSTEM: IBVAP-V2.1"
+    text_color = (0, 100, 255) if active_intrusions_count > 0 else (0, 255, 160)
+    cv2.putText(hud_frame, stats_str, (15, h - 10), font, 0.45, text_color, 1, cv2.LINE_AA)
 
     return hud_frame

@@ -100,6 +100,52 @@ export const getPrivacyNotice = async () => {
   return response.data.notice;
 };
 
+// Virtual Fence & Intrusion Detection APIs
+export const getFences = async (cameraId = null) => {
+  const params = {};
+  if (cameraId && cameraId !== 'ALL') params.camera_id = cameraId;
+  const response = await axios.get(`${API_BASE}/api/fences`, { params });
+  return response.data;
+};
+
+export const getFence = async (fenceId) => {
+  const response = await axios.get(`${API_BASE}/api/fences/${fenceId}`);
+  return response.data;
+};
+
+export const createFence = async (fenceData) => {
+  const response = await axios.post(`${API_BASE}/api/fences`, fenceData);
+  return response.data;
+};
+
+export const updateFence = async (fenceId, fenceData) => {
+  const response = await axios.put(`${API_BASE}/api/fences/${fenceId}`, fenceData);
+  return response.data;
+};
+
+export const deleteFence = async (fenceId) => {
+  const response = await axios.delete(`${API_BASE}/api/fences/${fenceId}`);
+  return response.data;
+};
+
+export const toggleFence = async (fenceId) => {
+  const response = await axios.post(`${API_BASE}/api/fences/${fenceId}/toggle`);
+  return response.data;
+};
+
+export const getIntrusionHistory = async ({ camera_id = '', limit = 50 } = {}) => {
+  const params = {};
+  if (camera_id && camera_id !== 'ALL') params.camera_id = camera_id;
+  if (limit) params.limit = limit;
+  const response = await axios.get(`${API_BASE}/api/fences/intrusions`, { params });
+  return response.data;
+};
+
+export const getFenceStats = async () => {
+  const response = await axios.get(`${API_BASE}/api/fences/stats`);
+  return response.data;
+};
+
 export class VideoWebSocketClient {
   constructor() {
     this.ws = null;

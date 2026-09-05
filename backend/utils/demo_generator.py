@@ -33,6 +33,34 @@ def attach_license_plate(sprite: np.ndarray, plate_text: str = "MH12AB1234") -> 
 
     return img
 
+def draw_vehicle_with_plate(
+    frame: np.ndarray,
+    x: int,
+    y: int,
+    scale: float = 1.0,
+    v_type: str = "CAR",
+    plate_text: str = "MH12AB1234",
+    body_color=(40, 60, 180)
+):
+    """Draws a vehicle template onto frame for testing."""
+    vw = int(240 * scale)
+    vh = int(140 * scale)
+    sprite = np.zeros((vh, vw, 3), dtype=np.uint8)
+    sprite[:] = body_color
+    cv2.rectangle(sprite, (0, 0), (vw, vh), (20, 20, 20), 2)
+    # Windows
+    cv2.rectangle(sprite, (int(vw * 0.15), int(vh * 0.1)), (int(vw * 0.85), int(vh * 0.5)), (180, 200, 220), -1)
+    sprite_with_plate = attach_license_plate(sprite, plate_text)
+
+    x1 = max(0, x - vw // 2)
+    y1 = max(0, y - vh // 2)
+    x2 = min(frame.shape[1], x1 + vw)
+    y2 = min(frame.shape[0], y1 + vh)
+    sw = x2 - x1
+    sh = y2 - y1
+    if sw > 0 and sh > 0:
+        frame[y1:y2, x1:x2] = sprite_with_plate[:sh, :sw]
+
 
 def draw_realistic_pedestrian(frame: np.ndarray, x: int, y: int, scale: float, frame_idx: int, color=(210, 210, 210)):
     """

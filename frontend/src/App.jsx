@@ -10,12 +10,23 @@ import { VehicleDetailModal } from './components/VehicleDetailModal.jsx';
 import { ANPRFeedPanel } from './components/ANPRFeedPanel.jsx';
 import { ANPRHistoryView } from './components/ANPRHistoryView.jsx';
 import { FaceWatchlistView } from './components/FaceWatchlistView.jsx';
+import { VirtualFenceControl } from './components/VirtualFenceControl.jsx';
+import { SecurityAlertsPanel } from './components/SecurityAlertsPanel.jsx';
+import { SecurityEventsView } from './components/SecurityEventsView.jsx';
 
-import { getSystemStatus, getCameras, uploadVideo, getRecentANPR, VideoWebSocketClient } from './services/api.js';
+import {
+  getSystemStatus,
+  getCameras,
+  uploadVideo,
+  getRecentANPR,
+  getIntrusionHistory,
+  getFences,
+  VideoWebSocketClient
+} from './services/api.js';
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState('live'); // 'live', 'anpr', 'faces'
-  const [sidePanelTab, setSidePanelTab] = useState('vehicles'); // 'vehicles', 'persons'
+  const [activeTab, setActiveTab] = useState('live'); // 'live', 'anpr', 'faces', 'security'
+  const [sidePanelTab, setSidePanelTab] = useState('vehicles'); // 'vehicles', 'persons', 'fences'
   
   const [systemStatus, setSystemStatus] = useState(null);
   const [cameras, setCameras] = useState([]);
@@ -29,10 +40,18 @@ export const App = () => {
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [frameSkip, setFrameSkip] = useState(1);
   const [recentANPREvents, setRecentANPREvents] = useState([]);
+  const [recentIntrusionAlerts, setRecentIntrusionAlerts] = useState([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Virtual Fence Drawing States
+  const [isDrawingFence, setIsDrawingFence] = useState(false);
+  const [fenceDrawingType, setFenceDrawingType] = useState('polygon'); // 'polygon' | 'line'
+  const [drawnFencePoints, setDrawnFencePoints] = useState([]);
+  const [existingFences, setExistingFences] = useState([]);
 
   const wsClientRef = useRef(null);
 
-  // Fetch initial system status & cameras
+  // Load initial system data
   useEffect(() => {
     getSystemStatus()
       .then(setSystemStatus)
@@ -46,6 +65,14 @@ export const App = () => {
       .then(setRecentANPREvents)
       .catch((err) => console.error('Failed to fetch recent ANPR:', err));
 
+    getIntrusionHistory({ limit: 10 })
+      .then(setRecentIntrusionAlerts)
+      .catch((err) => console.error('Failed to fetch intrusion history:', err));
+
+    getFences(selectedCameraId)
+      .then(setExistingFences)
+      .catch((err) => console.error('Failed to load fences:', err));
+
     // Instantiate WebSocket Client
     const client = new VideoWebSocketClient();
     client.connect(
@@ -55,7 +82,7 @@ export const App = () => {
           setTelemetry(data.telemetry);
           setStreamStatus('RUNNING');
 
-          // Check if there is a new ANPR event in this frame
+          // Check for new ANPR events
           if (data.telemetry?.recent_anpr_event) {
             setRecentANPREvents((prev) => {
               const evt = data.telemetry.recent_anpr_event;
@@ -64,6 +91,17 @@ export const App = () => {
               return [evt, ...prev.slice(0, 19)];
             });
           }
+
+          // Check for new Virtual Fence Intrusion alert events
+          if (data.telemetry?.recent_intrusion_event) {
+            setRecentIntrusionAlerts((prev) => {
+              const intrEvt = data.telemetry.recent_intrusion_event;
+              const exists = prev.some((e) => e.event_id === intrEvt.event_id);
+              if (exists) return prev;
+              return [intrEvt, ...prev.slice(0, 19)];
+            });
+          }
+
         } else if (data.type === 'video_ended') {
           setStreamStatus('ENDED');
         } else if (data.type === 'status') {
@@ -83,6 +121,13 @@ export const App = () => {
       client.disconnect();
     };
   }, []);
+
+  // Reload fences when selected camera changes
+  useEffect(() => {
+    getFences(selectedCameraId)
+      .then(setExistingFences)
+      .catch((err) => console.error('Failed to load fences:', err));
+  }, [selectedCameraId]);
 
   // Control handlers
   const handleStartStream = () => {
@@ -132,8 +177,26 @@ export const App = () => {
     wsClientRef.current?.selectTrack(trackId);
   };
 
+  // Drawing Handlers
+  const handleStartDrawing = (type) => {
+    setIsDrawingFence(true);
+    setFenceDrawingType(type);
+    setDrawnFencePoints([]);
+  };
+
+  const handleFinishDrawing = (points) => {
+    setDrawnFencePoints(points);
+    setIsDrawingFence(false);
+  };
+
+  const handleCancelDrawing = () => {
+    setIsDrawingFence(false);
+    setDrawnFencePoints([]);
+  };
+
   const personTracks = telemetry?.person_tracks || telemetry?.tracks || [];
   const vehicleTracks = telemetry?.vehicle_tracks || [];
+  const activeFencesCount = telemetry?.virtual_fences_count ?? existingFences.length;
 
   const selectedVehicleDetail =
     vehicleTracks.find((v) => v.track_id === selectedTrackId) || null;
@@ -162,11 +225,13 @@ export const App = () => {
         {/* Live Statistics Cards */}
         <StatsPanel telemetry={telemetry} />
 
-        {/* View Switch: Live Command vs ANPR History vs Face Watchlist */}
+        {/* View Switch: Live Command vs ANPR History vs Face Watchlist vs Security Events */}
         {activeTab === 'anpr' ? (
           <ANPRHistoryView />
         ) : activeTab === 'faces' ? (
           <FaceWatchlistView />
+        ) : activeTab === 'security' ? (
+          <SecurityEventsView />
         ) : (
           <>
             {/* Camera Selector (in Demo CCTV Mode) */}
@@ -184,10 +249,10 @@ export const App = () => {
               />
             )}
 
-            {/* Main Grid: Video Player & ANPR Ticker + Side Tracking Panels */}
+            {/* Main Grid: Video Player & Alerts + Side Tracking Panels */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               
-              {/* Left 2 Columns: Video Player & Recent ANPR Feed */}
+              {/* Left 2 Columns: Video Player, Intrusion Alerts & ANPR Feed */}
               <div className="lg:col-span-2 space-y-6">
                 <VideoPlayer
                   mode={mode}
@@ -202,6 +267,19 @@ export const App = () => {
                   uploadedFilename={uploadedFilename}
                   frameSkip={frameSkip}
                   onFrameSkipChange={setFrameSkip}
+                  isDrawing={isDrawingFence}
+                  fenceDrawingType={fenceDrawingType}
+                  onFinishDrawing={handleFinishDrawing}
+                  onCancelDrawing={handleCancelDrawing}
+                  existingFences={existingFences}
+                />
+
+                {/* Real-time Security Intrusion Alerts Panel */}
+                <SecurityAlertsPanel
+                  recentAlerts={recentIntrusionAlerts}
+                  onViewAllHistory={() => setActiveTab('security')}
+                  soundEnabled={soundEnabled}
+                  onToggleSound={() => setSoundEnabled((prev) => !prev)}
                 />
 
                 {/* Recent ANPR Live Feed */}
@@ -211,11 +289,11 @@ export const App = () => {
                 />
               </div>
 
-              {/* Right 1 Column: Tracking & Telemetry Panels */}
+              {/* Right 1 Column: Tracking & Virtual Fence Panels */}
               <div className="lg:col-span-1 space-y-4">
                 
-                {/* Switcher between Vehicles and Persons view */}
-                <div className="flex bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                {/* Switcher between Vehicles, Persons, and Virtual Fence view */}
+                <div className="flex bg-slate-900/90 p-1 rounded-xl border border-slate-800 gap-1">
                   <button
                     onClick={() => setSidePanelTab('vehicles')}
                     className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
@@ -236,10 +314,30 @@ export const App = () => {
                   >
                     PERSONS ({personTracks.length})
                   </button>
+                  <button
+                    onClick={() => setSidePanelTab('fences')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
+                      sidePanelTab === 'fences'
+                        ? 'bg-purple-600 text-white shadow glow-purple'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    FENCES ({activeFencesCount})
+                  </button>
                 </div>
 
-                {/* Active Vehicles List Panel */}
-                {sidePanelTab === 'vehicles' ? (
+                {/* Active Panel View */}
+                {sidePanelTab === 'fences' ? (
+                  <VirtualFenceControl
+                    cameraId={mode === 'demo' ? selectedCameraId : 'UPLOAD'}
+                    isDrawing={isDrawingFence}
+                    onStartDrawing={handleStartDrawing}
+                    onCancelDrawing={handleCancelDrawing}
+                    drawnPoints={drawnFencePoints}
+                    onClearDrawnPoints={() => setDrawnFencePoints([])}
+                    activeIntrusionsCount={telemetry?.active_intrusions_count ?? 0}
+                  />
+                ) : sidePanelTab === 'vehicles' ? (
                   <VehicleListPanel
                     vehicles={vehicleTracks}
                     selectedTrackId={selectedTrackId}

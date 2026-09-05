@@ -11,7 +11,9 @@ CROPS_DIR = ASSETS_DIR / "crops"
 PLATE_CROPS_DIR = CROPS_DIR / "plates"
 VEHICLE_CROPS_DIR = CROPS_DIR / "vehicles"
 FACE_CROPS_DIR = CROPS_DIR / "faces"
+INTRUSIONS_DIR = CROPS_DIR / "intrusions"
 REGISTERED_FACES_DIR = ASSETS_DIR / "registered_faces"
+FENCE_CONFIG_FILE = ASSETS_DIR / "fence_configs.json"
 
 # Ensure required directories exist
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -21,7 +23,12 @@ CROPS_DIR.mkdir(parents=True, exist_ok=True)
 PLATE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
 VEHICLE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
 FACE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
+INTRUSIONS_DIR.mkdir(parents=True, exist_ok=True)
 REGISTERED_FACES_DIR.mkdir(parents=True, exist_ok=True)
+
+# Virtual Fence & Intrusion Settings
+INTRUSION_ALERT_COOLDOWN = float(os.getenv("INTRUSION_ALERT_COOLDOWN", "5.0"))
+DEFAULT_FENCE_SEVERITY = os.getenv("DEFAULT_FENCE_SEVERITY", "HIGH")
 
 # Model Settings
 YOLO_MODEL = os.getenv("YOLO_MODEL", "yolo11n.pt")  # Lightweight nano model

@@ -70,6 +70,18 @@ export const Header = ({
             <UserCheck className="w-3.5 h-3.5" />
             Face Watchlist
           </button>
+
+          <button
+            onClick={() => onTabChange('security')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'security'
+                ? 'bg-red-600 text-white shadow-lg glow-red'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            Security Breaches
+          </button>
         </div>
 
         {/* Right Controls: Input Mode & Status */}

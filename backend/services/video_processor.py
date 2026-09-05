@@ -13,7 +13,8 @@ from backend.services.position_tracker import PositionTracker
 from backend.services.movement_analyzer import MovementAnalyzer
 from backend.services.vehicle_manager import VehicleManager
 from backend.services.face_service import FaceService
-from backend.utils.draw import draw_tracking_overlays, draw_cctv_hud
+from backend.services.virtual_fence import VirtualFenceManager
+from backend.utils.draw import draw_tracking_overlays, draw_virtual_fences, draw_cctv_hud
 from backend.config import (
     PROCESS_EVERY_N_FRAMES,
     YOLO_MODEL,
@@ -26,6 +27,7 @@ class VideoProcessor:
     """
     Unified High-Performance Video Processing Pipeline for IBVAP.
     Executes single-pass unified multi-object tracking (Person + Vehicle) + ANPR,
+    Facial Recognition, Virtual Fence Intrusion Detection,
     computes movement trajectories, aggregates multi-frame ANPR consensus,
     renders rich overlays, and delivers real-time telemetry.
     """
@@ -37,6 +39,7 @@ class VideoProcessor:
         self.vehicle_tracker = VehicleTracker(model_name=YOLO_MODEL, conf_threshold=VEHICLE_CONFIDENCE_THRESHOLD)
         self.anpr_engine = ANPREngine()
         self.face_service = FaceService()
+        self.virtual_fence_manager = VirtualFenceManager()
         
         # Spatial Telemetry Trackers
         self.person_position_tracker = PositionTracker()
@@ -74,6 +77,7 @@ class VideoProcessor:
         self.vehicle_tracker.reset()
         self.anpr_engine.reset()
         self.face_service.reset_session()
+        self.virtual_fence_manager.reset_session()
         self.person_position_tracker.reset()
         self.vehicle_position_tracker.reset()
         self.active_persons_cache.clear()
@@ -196,7 +200,15 @@ class VideoProcessor:
                     current_active_persons.append(person_info)
                     self.active_persons_cache[p_id] = person_info
 
-                # 3. Process Active Vehicles (V-001, V-002) + ANPR Pipeline
+                # 3. Process Virtual Fence & Intrusion Detection on Active Persons
+                active_intrusions, new_intrusion_event = self.virtual_fence_manager.process_frame(
+                    frame=frame,
+                    person_tracks=current_active_persons,
+                    camera_id=self.current_camera_id,
+                    frame_number=self.current_frame_number
+                )
+
+                # 4. Process Active Vehicles (V-001, V-002) + ANPR Pipeline
                 current_active_vehicles = []
                 new_anpr_event = None
 
@@ -254,15 +266,25 @@ class VideoProcessor:
                     current_active_vehicles.append(vehicle_info)
                     self.active_vehicles_cache[v_id] = vehicle_info
 
-                # 4. Render Visual Overlays (Both Persons and Vehicles with Plates)
-                processed_frame = draw_tracking_overlays(
+                # 5. Render Virtual Fences directly onto frame
+                camera_fences = self.virtual_fence_manager.get_fences(self.current_camera_id)
+                active_fence_ids = {item["fence_id"] for item in active_intrusions}
+                fenced_frame = draw_virtual_fences(
                     frame=frame,
-                    person_tracks=current_active_persons,
-                    vehicle_tracks=current_active_vehicles,
-                    selected_track_id=self.selected_track_id
+                    fences=camera_fences,
+                    active_fence_ids=active_fence_ids
                 )
 
-                # 5. Render Command Center CCTV HUD Overlay in Demo Mode
+                # 6. Render Visual Overlays (Persons with Face/Intrusion tags + Vehicles with Plates)
+                processed_frame = draw_tracking_overlays(
+                    frame=fenced_frame,
+                    person_tracks=current_active_persons,
+                    vehicle_tracks=current_active_vehicles,
+                    selected_track_id=self.selected_track_id,
+                    active_intrusions_map=self.virtual_fence_manager.active_intrusions
+                )
+
+                # 7. Render Command Center CCTV HUD Overlay in Demo Mode
                 cam_name = camera_info.get("name", "CAM-01") if camera_info else "CAM-01"
                 location = camera_info.get("location", "Border Sector") if camera_info else "Border Sector"
                 sim_timestamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -276,10 +298,12 @@ class VideoProcessor:
                         current_persons=len(current_active_persons),
                         current_vehicles=len(current_active_vehicles),
                         anpr_reads=self.vehicle_manager.get_total_anpr_count(),
-                        fps=current_fps
+                        fps=current_fps,
+                        active_intrusions_count=len(active_intrusions)
                     )
 
-                # 6. Assemble Unified Telemetry
+                # 8. Assemble Unified Telemetry
+                fence_stats = self.virtual_fence_manager.get_stats()
                 telemetry = {
                     "frame_number": self.current_frame_number,
                     "timestamp_simulated": sim_timestamp,
@@ -299,6 +323,13 @@ class VideoProcessor:
                     "recent_face_event": new_face_event,
                     "total_face_events": len(self.face_service.face_events),
                     "total_registered_personnel": len(self.face_service.database.registry),
+                    # Virtual Fence & Intrusion Data
+                    "recent_intrusion_event": new_intrusion_event.model_dump() if new_intrusion_event else None,
+                    "active_intrusions": active_intrusions,
+                    "active_intrusions_count": len(active_intrusions),
+                    "total_intrusions_count": fence_stats["total_intrusions"],
+                    "virtual_fences_count": fence_stats["active_fences"],
+                    "fences": [f.model_dump() for f in camera_fences],
                     "camera_id": self.current_camera_id,
                     "mode": mode,
                     "status": "RUNNING"

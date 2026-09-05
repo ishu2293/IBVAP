@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Play, Pause, Square, RotateCcw, Upload, Sliders, Film, Radio } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Upload, Sliders, Film, Radio, ShieldAlert } from 'lucide-react';
+import { FenceDrawingCanvas } from './FenceDrawingCanvas.jsx';
 
 export const VideoPlayer = ({
   mode,
@@ -14,6 +15,11 @@ export const VideoPlayer = ({
   uploadedFilename,
   frameSkip,
   onFrameSkipChange,
+  isDrawing = false,
+  fenceDrawingType = 'polygon',
+  onFinishDrawing,
+  onCancelDrawing,
+  existingFences = []
 }) => {
   const [dragActive, setDragActive] = useState(false);
 
@@ -88,6 +94,16 @@ export const VideoPlayer = ({
               </div>
             )}
           </div>
+        )}
+
+        {/* Interactive Virtual Fence Drawing Overlay */}
+        {isDrawing && (
+          <FenceDrawingCanvas
+            fenceType={fenceDrawingType}
+            onFinishDrawing={onFinishDrawing}
+            onCancel={onCancelDrawing}
+            existingFences={existingFences}
+          />
         )}
 
         {/* Video Ended Banner */}

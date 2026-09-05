@@ -10,12 +10,12 @@ from fastapi.responses import FileResponse
 
 from backend.config import ASSETS_DIR, UPLOADS_DIR, CROPS_DIR, DEMO_CAMERAS, DEMO_CCTV_DIR, BASE_DIR
 from backend.services.video_processor import VideoProcessor
-from backend.api import video, tracking, vehicles, anpr_api, face
+from backend.api import video, tracking, vehicles, anpr_api, face, fences
 from backend.utils.demo_generator import ensure_demo_assets
 
 app = FastAPI(
     title="IBVAP - Intelligent Border Video Analytics Platform",
-    description="Unified Human & Vehicle Detection, Tracking, ANPR & Facial Recognition powered by YOLO, ByteTrack, EasyOCR & OpenCV SFace",
+    description="Unified Human & Vehicle Detection, Tracking, ANPR, Facial Recognition & Virtual Fence Intrusion Detection",
     version="2.1.0"
 )
 
@@ -41,6 +41,7 @@ tracking.set_processor(processor)
 vehicles.set_processor(processor)
 anpr_api.set_processor(processor)
 face.set_processor(processor)
+fences.set_processor(processor)
 
 # Register API Routers
 app.include_router(video.router)
@@ -48,6 +49,7 @@ app.include_router(tracking.router)
 app.include_router(vehicles.router)
 app.include_router(anpr_api.router)
 app.include_router(face.router)
+app.include_router(fences.router)
 
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 FRONTEND_ASSETS = FRONTEND_DIST / "assets"
