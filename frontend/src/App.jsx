@@ -9,11 +9,12 @@ import { VehicleListPanel } from './components/VehicleListPanel.jsx';
 import { VehicleDetailModal } from './components/VehicleDetailModal.jsx';
 import { ANPRFeedPanel } from './components/ANPRFeedPanel.jsx';
 import { ANPRHistoryView } from './components/ANPRHistoryView.jsx';
+import { FaceWatchlistView } from './components/FaceWatchlistView.jsx';
 
 import { getSystemStatus, getCameras, uploadVideo, getRecentANPR, VideoWebSocketClient } from './services/api.js';
 
 export const App = () => {
-  const [activeTab, setActiveTab] = useState('live'); // 'live', 'anpr'
+  const [activeTab, setActiveTab] = useState('live'); // 'live', 'anpr', 'faces'
   const [sidePanelTab, setSidePanelTab] = useState('vehicles'); // 'vehicles', 'persons'
   
   const [systemStatus, setSystemStatus] = useState(null);
@@ -161,9 +162,11 @@ export const App = () => {
         {/* Live Statistics Cards */}
         <StatsPanel telemetry={telemetry} />
 
-        {/* View Switch: Live Command vs ANPR History */}
+        {/* View Switch: Live Command vs ANPR History vs Face Watchlist */}
         {activeTab === 'anpr' ? (
           <ANPRHistoryView />
+        ) : activeTab === 'faces' ? (
+          <FaceWatchlistView />
         ) : (
           <>
             {/* Camera Selector (in Demo CCTV Mode) */}

@@ -12,6 +12,7 @@ from backend.ai.anpr_engine import ANPREngine
 from backend.services.position_tracker import PositionTracker
 from backend.services.movement_analyzer import MovementAnalyzer
 from backend.services.vehicle_manager import VehicleManager
+from backend.services.face_service import FaceService
 from backend.utils.draw import draw_tracking_overlays, draw_cctv_hud
 from backend.config import (
     PROCESS_EVERY_N_FRAMES,
@@ -35,6 +36,7 @@ class VideoProcessor:
         self.human_tracker = HumanTracker(model_name=YOLO_MODEL, conf_threshold=CONFIDENCE_THRESHOLD)
         self.vehicle_tracker = VehicleTracker(model_name=YOLO_MODEL, conf_threshold=VEHICLE_CONFIDENCE_THRESHOLD)
         self.anpr_engine = ANPREngine()
+        self.face_service = FaceService()
         
         # Spatial Telemetry Trackers
         self.person_position_tracker = PositionTracker()
@@ -71,6 +73,7 @@ class VideoProcessor:
         self.human_tracker.reset()
         self.vehicle_tracker.reset()
         self.anpr_engine.reset()
+        self.face_service.reset_session()
         self.person_position_tracker.reset()
         self.vehicle_position_tracker.reset()
         self.active_persons_cache.clear()
@@ -149,8 +152,10 @@ class VideoProcessor:
                 if self.current_frame_number % self.process_every_n_frames == 0:
                     last_raw_persons, last_raw_vehicles = self.unified_tracker.track_frame(frame, persist=True)
 
-                # 2. Process Active Persons (P-001, P-002)
+                # 2. Process Active Persons (P-001, P-002) + Facial Recognition
                 current_active_persons = []
+                new_face_event = None
+
                 for p_raw in last_raw_persons:
                     p_id = p_raw["track_id"]
                     p_num = p_raw["numeric_id"]
@@ -160,6 +165,17 @@ class VideoProcessor:
                     self.unique_person_ids.add(p_id)
                     pos_data = self.person_position_tracker.update_position(p_id, p_bbox, self.current_frame_number)
                     motion = self.movement_analyzer.analyze_movement(pos_data["history"])
+
+                    # Run Facial Recognition & Watchlist Matcher
+                    face_telemetry, face_evt = self.face_service.process_person_face(
+                        frame=frame,
+                        track_id=p_id,
+                        person_bbox=p_bbox,
+                        frame_number=self.current_frame_number,
+                        camera_id=self.current_camera_id
+                    )
+                    if face_evt:
+                        new_face_event = face_evt
 
                     person_info = {
                         "track_id": p_id,
@@ -171,6 +187,7 @@ class VideoProcessor:
                         "foot_point": pos_data["foot_point"],
                         "direction": motion["direction"],
                         "status": motion["status"],
+                        "face": face_telemetry,
                         "history": pos_data["history"],
                         "first_seen_frame": pos_data["first_seen_frame"],
                         "last_seen_frame": pos_data["last_seen_frame"],
@@ -279,6 +296,9 @@ class VideoProcessor:
                     # Backward compatibility for existing person list
                     "tracks": current_active_persons,
                     "recent_anpr_event": new_anpr_event,
+                    "recent_face_event": new_face_event,
+                    "total_face_events": len(self.face_service.face_events),
+                    "total_registered_personnel": len(self.face_service.database.registry),
                     "camera_id": self.current_camera_id,
                     "mode": mode,
                     "status": "RUNNING"

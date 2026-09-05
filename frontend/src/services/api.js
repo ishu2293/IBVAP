@@ -52,6 +52,54 @@ export const getVehicleDetail = async (vehicleId) => {
   return response.data;
 };
 
+// Facial Recognition & Watchlist APIs
+export const getRegisteredFaces = async () => {
+  const response = await axios.get(`${API_BASE}/api/faces/registry`);
+  return response.data;
+};
+
+export const getNextPersonId = async () => {
+  const response = await axios.get(`${API_BASE}/api/faces/next-id`);
+  return response.data.next_id;
+};
+
+export const registerFace = async (formData) => {
+  const response = await axios.post(`${API_BASE}/api/faces/register`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const deleteRegisteredFace = async (personId) => {
+  const response = await axios.delete(`${API_BASE}/api/faces/${personId}`);
+  return response.data;
+};
+
+export const getFaceEvents = async ({ event_type = '', camera_id = '', limit = 50 } = {}) => {
+  const params = {};
+  if (event_type && event_type !== 'ALL') params.event_type = event_type;
+  if (camera_id && camera_id !== 'ALL') params.camera_id = camera_id;
+  if (limit) params.limit = limit;
+
+  const response = await axios.get(`${API_BASE}/api/faces/events`, { params });
+  return response.data;
+};
+
+export const getRecentFaces = async (limit = 10) => {
+  const response = await axios.get(`${API_BASE}/api/faces/recent`, { params: { limit } });
+  return response.data.recent;
+};
+
+export const getFaceStats = async () => {
+  const response = await axios.get(`${API_BASE}/api/faces/stats`);
+  return response.data;
+};
+
+export const getPrivacyNotice = async () => {
+  const response = await axios.get(`${API_BASE}/api/faces/notice`);
+  return response.data.notice;
+};
+
 export class VideoWebSocketClient {
   constructor() {
     this.ws = null;

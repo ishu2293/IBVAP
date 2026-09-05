@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, Cpu, Radio, UploadCloud, LayoutDashboard, CreditCard, Car } from 'lucide-react';
+import { ShieldAlert, Cpu, Radio, UploadCloud, LayoutDashboard, CreditCard, Car, UserCheck } from 'lucide-react';
 
 export const Header = ({
   systemStatus,
@@ -24,11 +24,11 @@ export const Header = ({
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-extrabold tracking-tight text-white">IBVAP</h1>
               <span className="text-[11px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 font-mono border border-cyan-800">
-                AI ANALYTICS V2.0
+                AI ANALYTICS V2.1
               </span>
             </div>
             <p className="text-xs text-slate-400 font-medium tracking-wide">
-              INTELLIGENT BORDER VIDEO ANALYTICS • HUMAN & VEHICLE TRACKING • ANPR
+              INTELLIGENT BORDER VIDEO ANALYTICS • TRACKING • ANPR • FACIAL RECOGNITION
             </p>
           </div>
         </div>
@@ -56,7 +56,19 @@ export const Header = ({
             }`}
           >
             <CreditCard className="w-3.5 h-3.5" />
-            ANPR Logs & Search
+            ANPR Logs
+          </button>
+
+          <button
+            onClick={() => onTabChange('faces')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'faces'
+                ? 'bg-cyan-600 text-white shadow-lg glow-cyan'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            Face Watchlist
           </button>
         </div>
 

@@ -59,22 +59,60 @@ def draw_tracking_overlays(
         if is_selected:
             cv2.rectangle(overlay_frame, (x1 - 2, y1 - 2), (x2 + 2, y2 + 2), (0, 255, 255), 2)
 
+        # Facial Recognition Info
+        face_info = track.get("face")
+        face_status = face_info.get("status") if face_info else "none"
+        face_bbox = face_info.get("face_bbox") if face_info else None
+
+        # Draw Face Box if detected
+        if face_bbox:
+            fx1, fy1, fx2, fy2 = map(int, face_bbox)
+            if face_status == "recognized":
+                f_color = (60, 220, 90)    # Emerald Green
+            elif face_status == "unknown":
+                f_color = (0, 140, 255)    # Amber / Warning
+            else:
+                f_color = (255, 200, 50)   # Cyan searching
+
+            cv2.rectangle(overlay_frame, (fx1, fy1), (fx2, fy2), f_color, 1)
+            # Corner accents
+            c_len = max(3, min(8, (fx2 - fx1) // 4))
+            cv2.line(overlay_frame, (fx1, fy1), (fx1 + c_len, fy1), f_color, 2)
+            cv2.line(overlay_frame, (fx1, fy1), (fx1, fy1 + c_len), f_color, 2)
+            cv2.line(overlay_frame, (fx2, fy1), (fx2 - c_len, fy1), f_color, 2)
+            cv2.line(overlay_frame, (fx2, fy1), (fx2, fy1 + c_len), f_color, 2)
+            cv2.line(overlay_frame, (fx1, fy2), (fx1 + c_len, fy2), f_color, 2)
+            cv2.line(overlay_frame, (fx1, fy2), (fx1, fy2 - c_len), f_color, 2)
+            cv2.line(overlay_frame, (fx2, fy2), (fx2 - c_len, fy2), f_color, 2)
+            cv2.line(overlay_frame, (fx2, fy2), (fx2, fy2 - c_len), f_color, 2)
+
         # Label Header
         font = cv2.FONT_HERSHEY_SIMPLEX
         label_id = f"{track_id}"
-        label_conf = f"PERSON {int(conf * 100)}%"
+        
+        if face_info and face_status == "recognized":
+            label_id = f"{track_id} | {face_info['name']}"
+            label_conf = f"VERIFIED {int(face_info.get('match_score', 0) * 100)}%"
+            header_bg = (30, 100, 40)  # Dark Emerald
+        elif face_info and face_status == "unknown":
+            label_id = f"{track_id} | UNKNOWN"
+            label_conf = f"UNREGISTERED ({int(conf * 100)}%)"
+            header_bg = (20, 60, 140)  # Dark Amber/Red Alert
+        else:
+            label_conf = f"PERSON {int(conf * 100)}%"
+            header_bg = color
 
-        text_size_id, _ = cv2.getTextSize(label_id, font, 0.45, 1)
-        text_size_conf, _ = cv2.getTextSize(label_conf, font, 0.45, 1)
+        text_size_id, _ = cv2.getTextSize(label_id, font, 0.42, 1)
+        text_size_conf, _ = cv2.getTextSize(label_conf, font, 0.38, 1)
         header_h = text_size_id[1] + text_size_conf[1] + 10
         header_w = max(text_size_id[0], text_size_conf[0]) + 12
 
         header_y1 = max(0, y1 - header_h - 2)
         header_y2 = max(header_h + 2, y1)
-        cv2.rectangle(overlay_frame, (x1, header_y1), (x1 + header_w, header_y2), color, -1)
+        cv2.rectangle(overlay_frame, (x1, header_y1), (x1 + header_w, header_y2), header_bg, -1)
 
-        cv2.putText(overlay_frame, label_id, (x1 + 4, header_y1 + text_size_id[1] + 2), font, 0.45, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(overlay_frame, label_conf, (x1 + 4, header_y1 + text_size_id[1] + text_size_conf[1] + 6), font, 0.40, (220, 220, 220), 1, cv2.LINE_AA)
+        cv2.putText(overlay_frame, label_id, (x1 + 4, header_y1 + text_size_id[1] + 2), font, 0.42, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(overlay_frame, label_conf, (x1 + 4, header_y1 + text_size_id[1] + text_size_conf[1] + 6), font, 0.38, (220, 220, 220), 1, cv2.LINE_AA)
 
         # Direction text
         dir_text = f"PERSON | {direction}"

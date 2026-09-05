@@ -69,6 +69,16 @@ export const TrackListPanel = ({
                       <span className="text-[11px] font-mono text-emerald-400">
                         {confPercent}%
                       </span>
+                      {track.face && track.face.status === 'recognized' && (
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                          {track.face.name}
+                        </span>
+                      )}
+                      {track.face && track.face.status === 'unknown' && (
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                          UNKNOWN
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-400">

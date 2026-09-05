@@ -10,6 +10,8 @@ UPLOADS_DIR = BASE_DIR / "uploads"
 CROPS_DIR = ASSETS_DIR / "crops"
 PLATE_CROPS_DIR = CROPS_DIR / "plates"
 VEHICLE_CROPS_DIR = CROPS_DIR / "vehicles"
+FACE_CROPS_DIR = CROPS_DIR / "faces"
+REGISTERED_FACES_DIR = ASSETS_DIR / "registered_faces"
 
 # Ensure required directories exist
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -18,6 +20,8 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 CROPS_DIR.mkdir(parents=True, exist_ok=True)
 PLATE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
 VEHICLE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
+FACE_CROPS_DIR.mkdir(parents=True, exist_ok=True)
+REGISTERED_FACES_DIR.mkdir(parents=True, exist_ok=True)
 
 # Model Settings
 YOLO_MODEL = os.getenv("YOLO_MODEL", "yolo11n.pt")  # Lightweight nano model
@@ -48,6 +52,14 @@ PLATE_CONFIDENCE_THRESHOLD = float(os.getenv("PLATE_CONFIDENCE_THRESHOLD", "0.40
 OCR_CONFIDENCE_THRESHOLD = float(os.getenv("OCR_CONFIDENCE_THRESHOLD", "0.35"))
 ANPR_CONSENSUS_FRAMES = int(os.getenv("ANPR_CONSENSUS_FRAMES", "2"))  # Frames needed for consensus
 ANPR_PROCESS_INTERVAL = int(os.getenv("ANPR_PROCESS_INTERVAL", "2"))  # Process ANPR every N frames per vehicle
+
+# Facial Recognition Settings
+FACE_DETECTION_MODEL = os.getenv("FACE_DETECTION_MODEL", "face_detection_yunet_2023mar.onnx")
+FACE_RECOGNITION_MODEL = os.getenv("FACE_RECOGNITION_MODEL", "face_recognition_sface_2021dec.onnx")
+FACE_DETECTION_THRESHOLD = float(os.getenv("FACE_DETECTION_THRESHOLD", "0.50"))
+FACE_RECOGNITION_THRESHOLD = float(os.getenv("FACE_RECOGNITION_THRESHOLD", "0.42"))  # SFace cosine similarity threshold
+FACE_PROCESS_INTERVAL = int(os.getenv("FACE_PROCESS_INTERVAL", "4"))  # Process face every N frames per person
+FACE_EVENT_COOLDOWN_SECONDS = int(os.getenv("FACE_EVENT_COOLDOWN_SECONDS", "60"))
 
 # Video Processing Settings
 PROCESS_EVERY_N_FRAMES = int(os.getenv("PROCESS_EVERY_N_FRAMES", "1"))

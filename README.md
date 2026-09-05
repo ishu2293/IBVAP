@@ -218,14 +218,24 @@ Ultralytics YOLO performs single-pass real-time object detection. The model eval
 
 Unlike traditional trackers that discard low-confidence detections, **ByteTrack** retains low-confidence bounding boxes to maintain track continuity during temporary occlusions or motion blur. It uses Kalman filtering for state estimation and Hungarian algorithm matching based on Intersection over Union (IoU) to map detections to track IDs (`P-001`, `P-002`).
 
+### 3. Face Detection & Recognition (Module 04)
+
+- **YuNet Face Detector (`face_detection_yunet_2023mar.onnx`)**: High-speed edge DNN model built into OpenCV (`cv2.FaceDetectorYN`). Restricts detection to the upper head-region of each detected person (`P-001`, `P-002`) to optimize CPU processing by 10x and associate faces directly with track IDs.
+- **SFace Face Embedder (`face_recognition_sface_2021dec.onnx`)**: Deep feature extractor built into OpenCV (`cv2.FaceRecognizerSF`). Aligns faces using 5 facial landmarks (eyes, nose, mouth corners) and produces 128-dimensional L2-normalized biometric embeddings.
+- **Cosine Similarity Verification**: Compares real-time embeddings against authorized personnel in the local watchlist database (`assets/registered_faces/face_registry.json`).
+- **Identity Consensus & Event De-duplication**: Locks recognized identities to track IDs across consecutive frames, logging `FACE_RECOGNIZED` and `UNKNOWN_FACE` events with an intelligent cooldown window to eliminate event spam.
+
+---
+
+## 🔒 Biometric Data & Privacy Notice
+
+> **Privacy Notice**: Facial recognition is intended for authorized security monitoring. Facial images and biometric information are processed only for the intended surveillance purpose and should be handled according to applicable organizational policies, privacy requirements, and data-retention rules. Stored biometric embeddings are restricted to local secure storage.
+
 ---
 
 ## 🔮 Future Extensions
 
 This module exposes clean interfaces for planned downstream IBVAP capabilities:
-- **Module 02**: Vehicle Detection & Classification
-- **Module 03**: Automated Number Plate Recognition (ANPR)
-- **Module 04**: Facial Recognition & Watchlist Matching
 - **Module 05**: Virtual Perimeter Intrusion & Loitering Analytics
 - **Module 06**: Unified Border Risk & Threat Assessment Engine
 

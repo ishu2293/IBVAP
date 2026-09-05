@@ -74,6 +74,98 @@ export const TrackDetailPanel = ({ track, onClose }) => {
 
       </div>
 
+      {/* Facial Recognition & Identity Card */}
+      {track.face && (
+        <div className={`p-3.5 rounded-xl border space-y-3 ${
+          track.face.status === 'recognized'
+            ? 'bg-emerald-950/40 border-emerald-500/50'
+            : track.face.status === 'unknown'
+            ? 'bg-amber-950/40 border-amber-500/50'
+            : 'bg-slate-900/80 border-slate-800'
+        }`}>
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className={`w-4 h-4 ${
+                track.face.status === 'recognized'
+                  ? 'text-emerald-400'
+                  : track.face.status === 'unknown'
+                  ? 'text-amber-400'
+                  : 'text-cyan-400'
+              }`} />
+              <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-200">
+                Facial Biometric Identity
+              </h4>
+            </div>
+
+            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+              track.face.status === 'recognized'
+                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                : track.face.status === 'unknown'
+                ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                : 'bg-slate-800 text-slate-400'
+            }`}>
+              {track.face.status === 'recognized' ? 'Verified Staff' : track.face.status === 'unknown' ? 'Unknown Person' : 'Searching Face'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Face Crop Thumbnail */}
+            <div className="w-14 h-14 rounded-lg bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+              {track.face.face_crop_url ? (
+                <img
+                  src={`http://localhost:8000${track.face.face_crop_url}`}
+                  alt="Face Crop"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '';
+                  }}
+                />
+              ) : (
+                <User className="w-7 h-7 text-slate-600" />
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-slate-100 truncate">
+                {track.face.name}
+              </div>
+              {track.face.person_id && (
+                <span className="text-[11px] font-mono text-cyan-400">
+                  ID: {track.face.person_id}
+                </span>
+              )}
+              <div className="text-[11px] text-slate-400 truncate">
+                {track.face.role || 'Personnel'}
+              </div>
+            </div>
+          </div>
+
+          {/* Biometric Match Score vs Face Detection Confidence */}
+          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div className="bg-slate-950/80 p-2 rounded border border-slate-800/80">
+              <span className="text-slate-500 block text-[10px]">Recognition Match:</span>
+              <span className={`font-bold text-sm ${
+                track.face.status === 'recognized' ? 'text-emerald-400' : 'text-amber-400'
+              }`}>
+                {Math.round((track.face.match_score || 0) * 100)}%
+              </span>
+            </div>
+            <div className="bg-slate-950/80 p-2 rounded border border-slate-800/80">
+              <span className="text-slate-500 block text-[10px]">Face Detection Conf:</span>
+              <span className="font-bold text-sm text-cyan-400">
+                {Math.round((track.face.face_confidence || 0) * 100)}%
+              </span>
+            </div>
+          </div>
+
+          {/* Privacy Notice Pill */}
+          <p className="text-[10px] text-slate-500 font-sans italic leading-tight pt-1">
+            Privacy Notice: Biometric facial identification is restricted to authorized surveillance monitoring.
+          </p>
+        </div>
+      )}
+
       {/* Position Coordinates */}
       <div className="bg-slate-900/80 p-3.5 rounded-lg border border-slate-800 space-y-2">
         <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300">
